@@ -1,7 +1,7 @@
 # Ubuntu Ratings Service Operator
 
 This is an operator that enables the Ubuntu Software Centre backend ratings service to run on
-Kubernetes with Juju, integrating with PostgreSQL for its database, and Traefik to provide ingress.
+Kubernetes with Juju, integrating with PostgreSQL for its database.
 
 ## Getting Started
 
