@@ -1,0 +1,16 @@
+name: Pull Request (Charm)
+
+on:
+  pull_request:
+    paths:
+      - '*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    uses: ./.github/workflows/build.yaml
+  cla:
+    uses: ./.github/workflows/cla.yaml
