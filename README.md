@@ -1,5 +1,7 @@
 # Ubuntu Ratings Service Operator
 
+[![Push (main)](https://github.com/canonical/app-center-ratings-operator/actions/workflows/push.yaml/badge.svg)](https://github.com/canonical/app-center-ratings-operator/actions/workflows/push.yaml)
+
 This is an operator that enables the Ubuntu Software Centre backend ratings service to run on
 Kubernetes with Juju, integrating with PostgreSQL for its database.
 
