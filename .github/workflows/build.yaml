@@ -14,7 +14,6 @@ jobs:
         run: python3 -m pip install tox
       - name: Run linters
         run: |
-          cd vm_operator
           tox -e lint
 
   unit-test:
@@ -27,7 +26,6 @@ jobs:
         run: python -m pip install tox
       - name: Run tests
         run: |
-          cd vm_operator
           tox -e unit
 
   functional-test:
@@ -45,7 +43,6 @@ jobs:
         uses: canonical/setup-lxd@4e959f8e0d9c5feb27d44c5e4d9a330a782edee0
       - name: Run tests
         run: |
-          cd vm_operator
           tox -e functional
 
   integration-test:
@@ -67,5 +64,4 @@ jobs:
           juju-channel: 3.2/stable
       - name: Run integration tests
         run: |
-          cd vm_operator
           tox -e integration -- --model=testing
