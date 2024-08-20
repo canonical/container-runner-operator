@@ -15,9 +15,8 @@ from pathlib import Path
 
 import ops
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
-from charms.operator_libs_linux.v1 import snap
+from container_runner import ContainerRunner
 from ops.model import ActiveStatus, MaintenanceStatus
-from ratings import Ratings
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ class RatingsCharm(ops.CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._ratings = Ratings()
+        self._container_runner = ContainerRunner()
 
         # Initialise the integration with PostgreSQL
         self._database = DatabaseRequires(self, relation_name="database", database_name="ratings")
@@ -48,25 +47,22 @@ class RatingsCharm(ops.CharmBase):
 
     def _on_start(self, _):
         """Start Ratings."""
-        self._ratings.start()
+        # self._ratings.start()
+        logger.info("Start hook called")
         self.unit.status = ActiveStatus()
 
     def _on_upgrade_charm(self, _):
         """Ensure the snap is refreshed (in channel) if there are new revisions."""
-        self.unit.status = ops.MaintenanceStatus("refreshing Ratings")
-        try:
-            self._ratings.refresh()
-        except snap.SnapError as e:
-            self.unit.status = ops.BlockedStatus(str(e))
+        self.unit.status = ops.MaintenanceStatus("upgrade hook called")
 
     def _on_install(self, _):
         """Install prerequisites for the application."""
-        self.unit.status = MaintenanceStatus("Installing Ratings")
+        self.unit.status = MaintenanceStatus("Installing Container Runner")
 
         try:
-            self._ratings.install()
+            self._container_runner.install()
             self.unit.status = MaintenanceStatus("Installation complete, waiting for database.")
-        except snap.SnapError as e:
+        except Exception as e:
             logger.error(f"Failed to install Ratings via snap: {e}")
             self.unit.status = ops.BlockedStatus(str(e))
 
