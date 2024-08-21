@@ -47,8 +47,28 @@ class RatingsCharm(ops.CharmBase):
 
     def _on_start(self, _):
         """Start Ratings."""
-        # self._ratings.start()
         logger.info("Start hook called")
+        self._container_runner.run()
+
+        try:
+            logger.info("Updating and resuming snap service for Ratings.")
+            env_vars = {
+                "APP_JWT_SECRET": "foo",
+                "APP_POSTGRES_URI": "bar",
+                "APP_MIGRATION_POSTGRES_URI": "fiz",
+                "APP_LOG_LEVEL": "info",
+                "APP_ENV": "production",
+                "APP_HOST": "0.0.0.0",
+                "APP_NAME": "ratings",
+                "APP_PORT": "443",
+            }
+            self._container_runner.configure(env_vars)
+            # self.unit.open_port(protocol="tcp", port=PORT)
+            self.unit.status = ops.ActiveStatus()
+            logger.info("Ratings service started successfully.")
+        except Exception as e:
+            logger.error(f"Failed to start Ratings service: {str(e)}")
+            self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
         self.unit.status = ActiveStatus()
 
     def _on_upgrade_charm(self, _):

@@ -73,11 +73,24 @@ class _Docker:
         ]
         return self._run_command("run", docker_args)
 
-    def run_container(self, image: str, container_name: str):
-        """Run a container with Docker."""
-        docker_args = ["-d", "--name", container_name, image]
+    def run_container(self, image: str, container_name: str, env_vars: Optional[dict] = None):
+        """Run a container with Docker, optionally passing environment variables."""
+        docker_args = ["-d", "--name", container_name]
+        if env_vars:
+            for key, value in env_vars.items():
+                docker_args.extend(["-e", f"{key}={value}"])
+
+        docker_args.append(image)
         return self._run_command("run", docker_args)
 
+    def stop_container(self, container_name: str):
+        """Stop a running container and wait for it to stop."""
+        self._run_command("stop", [container_name])
+        self._run_command("wait", [container_name])
+
+    def remove_container(self, container_name: str):
+        """Remove a stopped container."""
+        self._run_command("rm", [container_name])
 
 class ContainerRunner:
     """Class representing a managed container running on a host system."""
@@ -88,19 +101,8 @@ class ContainerRunner:
         self._ratings_container = "my-ratings-container"
         self._watchtower_container = "my-watchtower-container"
 
-    def install(self):
-        """Install the Docker snap package and run the OCI image."""
-        # Install the Docker Snap
-        self._docker.install()
-
-        # Pull the Ratings image
-        try:
-            self._docker.pull_image(self._ratings_image)
-            logger.info("Successfully pulled ratings image: %s", self._ratings_image)
-        except Exception as e:
-            logger.error("Failed to pull ratings image: %s", e)
-            raise
-
+    def run(self):
+        """"Run the OCI image specified in the ContainerRunner config."""
         # Run the Ratings container
         try:
             self._docker.run_container(self._ratings_image, self._ratings_container)
@@ -108,6 +110,12 @@ class ContainerRunner:
         except Exception as e:
             logger.error("Failed to start Ratings container: %s", e)
             raise
+
+
+    def install(self):
+        """Install the Docker snap package and run the OCI image."""
+        # Install the Docker Snap
+        self._docker.install()
 
         # Run Watchtower to monitor the Ratings container
         try:
@@ -117,37 +125,36 @@ class ContainerRunner:
             logger.error("Failed to start Watchtower: %s", e)
             raise
 
-    # env_vars = {
-    # "jwt_secret": "your_jwt_secret",
-    # "log_level": "DEBUG",
-    # "postgres_uri": "postgresql://localhost/db",
-    # "migration_postgres_uri": "postgresql://localhost/migration_db",
-    # "env": "production"
-    # }
+        # Pull the Ratings image
+        try:
+            self._docker.pull_image(self._ratings_image)
+            logger.info("Successfully pulled ratings image: %s", self._ratings_image)
+        except Exception as e:
+            logger.error("Failed to pull ratings image: %s", e)
+            raise
 
-    ## Old functions
-    # def configure(self, env_vars=None):
-    #     """Configure Ratings on the host system with arbitrary environment variables."""
-    #     if env_vars:
-    #         for key, value in env_vars.items():
-    #             if value:  # Only set if the value is not None
-    #                 self._ratings.set({f"app-{key.replace('_', '-')}".lower(): value})
+    def configure(self, env_vars=None):
+        """Configure and restart the Ratings container with updated environment variables."""
+        # Stop the current Ratings container and wait for it to fully stop
+        try:
+            self._docker.stop_container(self._ratings_container)
+            logger.info("Successfully stopped container: %s", self._ratings_container)
+        except Exception as e:
+            logger.error("Failed to stop container: %s", e)
+            raise
 
-    #     # Restart the snap service
-    #     self._ratings.restart()
+        # Remove the Ratings container and ensure it's fully removed
+        try:
+            self._docker.remove_container(self._ratings_container)
+            logger.info("Successfully removed container: %s", self._ratings_container)
+        except Exception as e:
+            logger.error("Failed to remove container: %s", e)
+            raise
 
-    # @property
-    # def installed(self):
-    #     """Report if the Ratings snap is installed."""
-    #     return self._ratings.present
-
-    # @property
-    # def running(self):
-    #     """Report if the 'ratings-svc' snap service is running."""
-    #     return self._ratings.services["ratings-svc"]["active"]
-
-    # @property
-    # def _ratings(self):
-    #     """Return a representation of the Ratings snap."""
-    #     cache = snap.SnapCache()
-    #     return cache["ratings"]
+        # Re-run the Ratings container with environment variables
+        try:
+            self._docker.run_container(self._ratings_image, self._ratings_container, env_vars)
+            logger.info("Successfully re-ran container: %s with env vars: %s", self._ratings_container, env_vars)
+        except Exception as e:
+            logger.error("Failed to re-run container: %s", e)
+            raise
