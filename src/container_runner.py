@@ -92,6 +92,7 @@ class _Docker:
         """Remove a stopped container."""
         self._run_command("rm", [container_name])
 
+
 class ContainerRunner:
     """Class representing a managed container running on a host system."""
 
@@ -110,7 +111,6 @@ class ContainerRunner:
         except Exception as e:
             logger.error("Failed to start Ratings container: %s", e)
             raise
-
 
     def install(self):
         """Install the Docker snap package and run the OCI image."""

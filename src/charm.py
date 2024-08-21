@@ -7,6 +7,7 @@
 A backend service to support application ratings in the new Ubuntu Software Centre.
 """
 
+import io
 import logging
 import os
 import secrets
@@ -16,10 +17,10 @@ from pathlib import Path
 import ops
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
 from container_runner import ContainerRunner
+from dotenv import dotenv_values
 from ops.model import ActiveStatus, MaintenanceStatus
 
 logger = logging.getLogger(__name__)
-
 
 PATH = Path("/srv/app")
 UNIT_PATH = Path("/etc/systemd/system/ratings.service")
@@ -27,7 +28,6 @@ CARGO_PATH = Path(environ.get("HOME", "/root")) / ".cargo/bin/cargo"
 PORT = 443
 NAME = "ratings"
 HOST = "0.0.0.0"
-
 
 class RatingsCharm(ops.CharmBase):
     """Main operator class for ratings service."""
@@ -45,6 +45,37 @@ class RatingsCharm(ops.CharmBase):
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
+        # Attempt to load the env file
+        self._env_vars = self._load_env_file()
+
+    def _load_env_file(self):
+        """Attempt to load and validate the .env files from resources and secrets."""
+        env_file_path = None
+        env_vars = {}
+
+        # Load env vars from Juju resource
+        try:
+            env_file_path = self.model.resources.fetch('env-file')
+            env_vars = dotenv_values(env_file_path)
+            if not env_vars:
+                raise ValueError("The .env file is empty or has invalid formatting.")
+            logging.info(".env file loaded successfully.")
+        except Exception as e:
+            logging.info(f"Failed to load resource: {e}")
+
+        # Load secrets from Juju secret
+        # try:
+        #     secret_env_content = self.model.get_secret(label='env-file-secret').get_content()
+        #     secret_env_vars = dotenv_values(stream=io.StringIO(secret_env_content))
+        #     env_vars.update(secret_env_vars)
+        #     logging.info("Secrets loaded successfully and merged with .env file.")
+        # except ops.SecretNotFoundError as e:
+        #     logging.error(f"Failed to retrieve env-file secret from Juju: {e}")
+        # except Exception as e:
+        #     logging.error(f"Failed to load or parse secret env-vars file: {e}")
+
+        return env_vars
+
     def _on_start(self, _):
         """Start Ratings."""
         logger.info("Start hook called")
@@ -52,17 +83,8 @@ class RatingsCharm(ops.CharmBase):
 
         try:
             logger.info("Updating and resuming snap service for Ratings.")
-            env_vars = {
-                "APP_JWT_SECRET": "foo",
-                "APP_POSTGRES_URI": "bar",
-                "APP_MIGRATION_POSTGRES_URI": "fiz",
-                "APP_LOG_LEVEL": "info",
-                "APP_ENV": "production",
-                "APP_HOST": "0.0.0.0",
-                "APP_NAME": "ratings",
-                "APP_PORT": "443",
-            }
-            self._container_runner.configure(env_vars)
+            if self._env_vars:
+                self._container_runner.configure(self._env_vars)
             # self.unit.open_port(protocol="tcp", port=PORT)
             self.unit.status = ops.ActiveStatus()
             logger.info("Ratings service started successfully.")
