@@ -19,7 +19,7 @@ from ops.model import ActiveStatus, MaintenanceStatus
 logger = logging.getLogger(__name__)
 
 
-class RatingsCharm(ops.CharmBase):
+class ContainerRunnerCharm(ops.CharmBase):
     """Main operator class for ratings service."""
 
     def __init__(self, *args):
@@ -52,7 +52,6 @@ class RatingsCharm(ops.CharmBase):
         except Exception as e:
             logger.error(f"Failed to start Ratings service: {str(e)}")
             self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
-        self.unit.status = ActiveStatus()
 
     def _load_env_file(self):
         """Attempt to load and validate the .env files from resources and secrets."""
@@ -72,6 +71,7 @@ class RatingsCharm(ops.CharmBase):
             secret_env_vars = self._get_secret_content(self.config.get("env-vars"))
             if secret_env_vars:
                 env_vars.update(secret_env_vars)
+                logging.info(f"Loaded secret env vars: {env_vars}")
         except Exception as e:
             logging.info(f"Failed to load secret env vars: {e}")
 
@@ -92,7 +92,6 @@ class RatingsCharm(ops.CharmBase):
         except Exception as e:
             logger.error(f"Failed to start Ratings service: {str(e)}")
             self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
-        self.unit.status = ActiveStatus()
 
     def _on_upgrade_charm(self, _):
         """Ensure the snap is refreshed (in channel) if there are new revisions."""
@@ -193,4 +192,4 @@ class RatingsCharm(ops.CharmBase):
 
 
 if __name__ == "__main__":  # pragma: nocover
-    ops.main(RatingsCharm)
+    ops.main(ContainerRunnerCharm)
