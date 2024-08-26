@@ -8,10 +8,7 @@ A backend service to support application ratings in the new Ubuntu Software Cent
 """
 import logging
 import os
-import secrets
 from io import StringIO
-from os import environ
-from pathlib import Path
 
 import ops
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
@@ -20,13 +17,6 @@ from dotenv import dotenv_values
 from ops.model import ActiveStatus, MaintenanceStatus
 
 logger = logging.getLogger(__name__)
-
-PATH = Path("/srv/app")
-UNIT_PATH = Path("/etc/systemd/system/ratings.service")
-CARGO_PATH = Path(environ.get("HOME", "/root")) / ".cargo/bin/cargo"
-PORT = 443
-NAME = "ratings"
-HOST = "0.0.0.0"
 
 
 class RatingsCharm(ops.CharmBase):
@@ -176,29 +166,6 @@ class RatingsCharm(ops.CharmBase):
             return connection_string
         else:
             logger.warning("Missing database relation data. Cannot generate connection string.")
-            return ""
-
-    def _jwt_secret(self) -> str:
-        """Report the apps JWT secret; create one if it doesn't exist."""
-        # If the peer relation is not ready, just return an empty string
-        relation = self.model.get_relation("ratings-peers")
-        if not relation:
-            return ""
-
-        # If the secret already exists, grab its content and return it
-        secret_id = relation.data[self.app].get("jwt-secret-id", None)
-        if secret_id:
-            secret = self.model.get_secret(id=secret_id)
-            return secret.peek_content().get("jwt-secret")
-
-        if self.unit.is_leader():
-            logger.info("Creating a new JWT secret")
-            content = {"jwt-secret": secrets.token_hex(24)}
-            secret = self.app.add_secret(content)
-            # Store the secret id in the peer relation for other units if required
-            relation.data[self.app]["jwt-secret-id"] = secret.id
-            return content["jwt-secret"]
-        else:
             return ""
 
     def _set_proxy(self):
