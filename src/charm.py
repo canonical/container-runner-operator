@@ -6,11 +6,10 @@
 
 A backend service to support application ratings in the new Ubuntu Software Centre.
 """
-
-import io
 import logging
 import os
 import secrets
+from io import StringIO
 from os import environ
 from pathlib import Path
 
@@ -28,6 +27,7 @@ CARGO_PATH = Path(environ.get("HOME", "/root")) / ".cargo/bin/cargo"
 PORT = 443
 NAME = "ratings"
 HOST = "0.0.0.0"
+
 
 class RatingsCharm(ops.CharmBase):
     """Main operator class for ratings service."""
@@ -61,18 +61,13 @@ class RatingsCharm(ops.CharmBase):
                 raise ValueError("The .env file is empty or has invalid formatting.")
             logging.info(".env file loaded successfully.")
         except Exception as e:
-            logging.info(f"Failed to load resource: {e}")
-
-        # Load secrets from Juju secret
-        # try:
-        #     secret_env_content = self.model.get_secret(label='env-file-secret').get_content()
-        #     secret_env_vars = dotenv_values(stream=io.StringIO(secret_env_content))
-        #     env_vars.update(secret_env_vars)
-        #     logging.info("Secrets loaded successfully and merged with .env file.")
-        # except ops.SecretNotFoundError as e:
-        #     logging.error(f"Failed to retrieve env-file secret from Juju: {e}")
-        # except Exception as e:
-        #     logging.error(f"Failed to load or parse secret env-vars file: {e}")
+            logging.info(f"Failed to load env vars resource: {e}")
+        try:
+            secret_env_vars = self._get_secret_content(self.config.get("env-vars"))
+            if secret_env_vars:
+                env_vars.update(secret_env_vars)
+        except Exception as e:
+            logging.info(f"Failed to load secret env vars: {e}")
 
         return env_vars
 
@@ -107,6 +102,17 @@ class RatingsCharm(ops.CharmBase):
         except Exception as e:
             logger.error(f"Failed to install Ratings via snap: {e}")
             self.unit.status = ops.BlockedStatus(str(e))
+
+    def _get_secret_content(self, secret_id):
+        """Get the content of a Juju secret."""
+        try:
+            secret = self.model.get_secret(id=secret_id)
+            env_var_buffer = secret.get_content(refresh=True)["env-vars"]
+            env_vars = dotenv_values(stream=StringIO(env_var_buffer))
+            return env_vars
+        except ops.SecretNotFoundError:
+            logger.error(f"secret {secret_id!r} not found.")
+            raise
 
     def _on_database_created(self, _: DatabaseCreatedEvent):
         """Handle the database creation event."""
@@ -157,13 +163,14 @@ class RatingsCharm(ops.CharmBase):
         if not relation:
             logger.warning("Database relation not found. Returning empty connection string.")
             return ""
-
+        # TODO: Assumes this is a psql db, should be more generic in the future.
         data = self._database.fetch_relation_data()[relation.id]
         username = data.get("username")
         password = data.get("password")
         endpoints = data.get("endpoints")
 
         if username and password and endpoints:
+            # FIXME: We contruct the db connection aware of ratings, pass on the parts in future
             connection_string = f"postgres://{username}:{password}@{endpoints}/ratings"
             logger.info(f"Generated database connection string with endpoints: {endpoints}.")
             return connection_string

@@ -8,3 +8,7 @@ options:
     default: "info"
     description: |
         Available log level settings are "info", "warning", "error" and "debug".
+  env-vars:
+    type: secret
+    description: | 
+      foobar!
