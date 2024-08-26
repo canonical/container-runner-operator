@@ -34,9 +34,25 @@ class RatingsCharm(ops.CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
 
         # Attempt to load the env file
         self._env_vars = self._load_env_file()
+
+    def _on_config_changed(self, _):
+        """Update the env vars and restart the OCI container."""
+        self._env_vars = self._load_env_file()
+        try:
+            logger.info("Updating and resuming snap service for Ratings.")
+            if self._env_vars:
+                self._container_runner.configure(self._env_vars)
+            # self.unit.open_port(protocol="tcp", port=PORT)
+            self.unit.status = ops.ActiveStatus()
+            logger.info("Ratings service started successfully.")
+        except Exception as e:
+            logger.error(f"Failed to start Ratings service: {str(e)}")
+            self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
+        self.unit.status = ActiveStatus()
 
     def _load_env_file(self):
         """Attempt to load and validate the .env files from resources and secrets."""
