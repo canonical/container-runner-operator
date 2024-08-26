@@ -11,4 +11,4 @@ options:
   env-vars:
     type: secret
     description: | 
-      foobar!
+        Expects the string content of a .env file, with each variable on a new line.
