@@ -145,7 +145,7 @@ class ContainerRunnerCharm(ops.CharmBase):
         except Exception as e:
             self.unit.status = ops.BlockedStatus(f"Failed to start configure container runner: {str(e)}")
         self.unit.open_port(protocol="tcp", port=443)
-        self.unit.status = ops.ActiveStatus()
+        self.unit.status = ActiveStatus()
 
     def _db_connection_string(self) -> str:
         """Report database connection string using info from relation databag."""
