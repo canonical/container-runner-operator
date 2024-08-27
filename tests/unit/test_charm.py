@@ -90,17 +90,6 @@ class TestCharm(unittest.TestCase):
 
         _configure.assert_called_with({"Foo": "foo", "Bar": "bar"})
 
-    # @mock.patch("charm.RatingsCharm._update_service_config")
-    # def test_on_database_created(self, _update):
-    #     # Create a mock DatabaseCreatedEvent
-    #     mock_event = mock.MagicMock(spec=DatabaseCreatedEvent)
-
-    #     # Simulate database created event
-    #     self.harness.charm._on_database_created(mock_event)
-
-    #     # Check _update_service_config was called
-    #     _update.assert_called_once()
-
     def test_ratings_db_connection_string_no_relation(self):
         self.assertEqual(self.harness.charm._db_connection_string(), "")
 
@@ -110,75 +99,57 @@ class TestCharm(unittest.TestCase):
         expected = "postgres://username:password@postgres:5432/ratings"
         self.assertEqual(self.harness.charm._db_connection_string(), expected)
 
-    # @patch("charm.RatingsCharm._update_service_config")
-    # @patch("charm.DatabaseRequires.is_resource_created", lambda x: True)
-    # def test_ratings_database_created_database_success(self, _update):
-    #     rel_id = self.harness.add_relation("database", "postgresql", unit_data=DB_RELATION_DATA)
-    #     self.harness.charm._database.on.database_created.emit(MockDatabaseEvent(id=rel_id))
+    @mock.patch("charm.ContainerRunnerCharm._update_service_config")
+    def test_on_database_created(self, _update):
+        # Create a mock DatabaseCreatedEvent
+        mock_event = mock.MagicMock(spec=DatabaseCreatedEvent)
 
-    #     _update.assert_called_once()
+        # Simulate database created event
+        self.harness.charm._on_database_created(mock_event)
 
-    # @patch("charm.RatingsCharm._set_proxy")
-    # @patch("charm.RatingsCharm._db_connection_string", return_value="bar")
-    # @patch("charm.RatingsCharm._jwt_secret", return_value="foo")
-    # @mock.patch("charm.Ratings.configure")
-    # def test_update_service_config(self, _conf, _jwt, _db_string, _proxy):
-    #     # Set env and log-level
-    #     self.harness.update_config({"env": "test-env", "log-level": "debug"})
+        # Check _update_service_config was called
+        _update.assert_called_once()
 
-    #     # If no relation, wait on relation
-    #     self.harness.charm._update_service_config()
-    #     self.assertEqual(
-    #         self.harness.charm.unit.status, WaitingStatus("Waiting for database relation")
-    #     )
+    @patch("charm.ContainerRunnerCharm._update_service_config")
+    @patch("charm.DatabaseRequires.is_resource_created", lambda x: True)
+    def test_ratings_database_created_database_success(self, _update):
+        rel_id = self.harness.add_relation("database", "postgresql", unit_data=DB_RELATION_DATA)
+        self.harness.charm._database.on.database_created.emit(MockDatabaseEvent(id=rel_id))
 
-    #     # If the relation is set, open the ports and restart the service
-    #     self.harness.add_relation("database", "postgresql", unit_data=DB_RELATION_DATA)
-    #     self.harness.charm._update_service_config()
+        _update.assert_called_once()
 
-    #     # JWT was generated
-    #     _jwt.assert_called_once()
+    @patch("charm.ContainerRunnerCharm._set_proxy")
+    @patch("charm.ContainerRunnerCharm._db_connection_string", return_value="bar")
+    @mock.patch("charm.ContainerRunner.configure")
+    def test_update_service_config(self, _conf, _db_string, _proxy):
+        # Set env and log-level
+        self.harness.update_config({"env": "test-env", "log-level": "debug"})
 
-    #     # Connection string retrieved
-    #     _db_string.assert_called_once()
+        # If no relation, wait on relation
+        self.harness.charm._update_service_config()
+        self.assertEqual(
+            self.harness.charm.unit.status, WaitingStatus("Waiting for database relation")
+        )
 
-    #     # Proxy set
-    #     _proxy.assert_called_once()
+        # If the relation is set, open the ports and restart the service
+        self.harness.add_relation("database", "postgresql", unit_data=DB_RELATION_DATA)
+        self.harness.charm._update_service_config()
 
-    #     # Configure is called with the correct values
-    #     _conf.assert_called_with(
-    #         jwt_secret="foo",
-    #         postgres_uri="bar",
-    #         migration_postgres_uri="bar",
-    #         log_level="debug",
-    #         env="test-env",
-    #     )
+        # Connection string retrieved
+        _db_string.assert_called_once()
 
-    #     # Check the ports have been opened
-    #     opened_ports = {(p.protocol, p.port) for p in self.harness.charm.unit.opened_ports()}
-    #     self.assertEqual(opened_ports, {("tcp", 443)})
+        # Proxy set
+        _proxy.assert_called_once()
 
-    #     # Check status is active
-    #     self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
+        # Configure is called with the correct values
+        _conf.assert_called_with({'DB_CONNECTION_STRING': 'bar'})
 
-    # def test_ratings_jwt_secret_from_peer_data(self):
-    #     content = {"jwt-secret": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
-    #     secret_id = self.harness.add_model_secret(owner=self.harness.charm.app, content=content)
-    #     self.harness.add_relation(
-    #         "ratings-peers", "ubuntu-software-ratings", app_data={"jwt-secret-id": secret_id}
-    #     )
-    #     secret = self.harness.charm._jwt_secret()
-    #     self.assertEqual(secret, content["jwt-secret"])
+        # Check the ports have been opened
+        opened_ports = {(p.protocol, p.port) for p in self.harness.charm.unit.opened_ports()}
+        self.assertEqual(opened_ports, {("tcp", 443)})
 
-    # def test_ratings_jwt_secret_no_relation(self):
-    #     new_secret = self.harness.charm._jwt_secret()
-    #     self.assertEqual(new_secret, "")
-
-    # def test_ratings_jwt_secret_create(self):
-    #     self.harness.add_relation("ratings-peers", "ubuntu-software-ratings")
-    #     self.harness.set_leader(True)
-    #     new_secret = self.harness.charm._jwt_secret()
-    #     self.assertEqual(len(new_secret), 48)
+        # Check status is active
+        self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
 
     @mock.patch.dict(os.environ, {"JUJU_CHARM_HTTP_PROXY": "http://example.com:3128"}, clear=True)
     def test_set_proxy(self):
