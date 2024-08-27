@@ -137,27 +137,15 @@ class ContainerRunnerCharm(ops.CharmBase):
         # Get connection string from Juju relation to db
         connection_string = self._db_connection_string()
 
-        # Generate jwt secret
-        jwt_secret = self._jwt_secret()
-
         # Ensure squid proxy
         self._set_proxy()
-
+        self._env_vars.update({"DB_CONNECTION_STRING": connection_string})
         try:
-            logger.info("Updating and resuming snap service for Ratings.")
-            self._ratings.configure(
-                jwt_secret=jwt_secret,
-                postgres_uri=connection_string,
-                migration_postgres_uri=connection_string,
-                log_level=self.config["log-level"],
-                env=self.config["env"],
-            )
-            self.unit.open_port(protocol="tcp", port=PORT)
-            self.unit.status = ops.ActiveStatus()
-            logger.info("Ratings service started successfully.")
+            self._container_runner.configure(self._env_vars)
         except Exception as e:
-            logger.error(f"Failed to start Ratings service: {str(e)}")
-            self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
+            self.unit.status = ops.BlockedStatus(f"Failed to start configure container runner: {str(e)}")
+        self.unit.open_port(protocol="tcp", port=443)
+        self.unit.status = ops.ActiveStatus()
 
     def _db_connection_string(self) -> str:
         """Report database connection string using info from relation databag."""
