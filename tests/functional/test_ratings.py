@@ -1,49 +1,31 @@
 import unittest
-from pathlib import Path
-from unittest import mock
 
-from ratings import Ratings
+from container_runner import ContainerRunner
 
 
 class TestRatings(unittest.TestCase):
     def setUp(self):
-        self.ratings = Ratings()
-        if not self.ratings.installed:
-            self.ratings.install()
+        self.container_runner = ContainerRunner()
+        if not self.container_runner.installed:
+            self.container_runner.install()
 
-    def test_install(self):
-        self.assertTrue(Path("/snap/ratings/current/bin/ratings").exists())
-        self.assertTrue(self.ratings.installed)
+    def test_lifecycle(self):
+        self.assertTrue(self.container_runner.installed)
 
-    def test_start(self):
-        self.ratings.start()
-        self.assertTrue(self.ratings.running)
-        self.ratings.remove()
+        self.container_runner.run()
+        self.assertTrue(self.container_runner.running)
 
-    def test_stop(self):
-        self.ratings.stop()
-        self.assertFalse(self.ratings.running)
-        self.ratings.remove()
+        env_vars = {"Foo": "foo", "Bar": "bar"}
+        self.container_runner.configure(env_vars)
 
-    def test_remove(self):
-        self.ratings.remove()
-        self.assertFalse(self.ratings.installed)
+        # Check if the container is running
+        self.assertTrue(self.container_runner.running)
 
-    @mock.patch("charms.operator_libs_linux.v1.snap.Snap.restart")
-    def test_configure_ratings(self, _restart):
-        self.ratings.configure(
-            jwt_secret="foo",
-            log_level="bar",
-            postgres_uri="foobar",
-            migration_postgres_uri="barfoo",
-            env="testenv",
+        # Inspect the container's environment variables
+        env_output = self.container_runner._docker._run_command(
+            "inspect",
+            ["-f", "{{json .Config.Env}}", self.container_runner._ratings_container],
         )
-
-        # Test have been updated
-        self.assertEqual(self.ratings._snap.get("app-jwt-secret"), "foo")
-        self.assertEqual(self.ratings._snap.get("app-log-level"), "bar")
-        self.assertEqual(self.ratings._snap.get("app-migration-postgres-uri"), "barfoo")
-        self.assertEqual(self.ratings._snap.get("app-postgres-uri"), "foobar")
-        self.assertEqual(self.ratings._snap.get("app-env"), "testenv")
-
-        _restart.assert_called_once()
+        env_vars_in_container = eval(env_output)
+        for key, value in env_vars.items():
+            self.assertIn(f"{key}={value}", env_vars_in_container)

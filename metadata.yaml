@@ -10,7 +10,7 @@ description: |
   Backend service to support application ratings in the new Ubuntu Software Centre.
 
 assumes:
-  - juju >= 3.1
+  - juju >= 3.5
 
 requires:
   database:

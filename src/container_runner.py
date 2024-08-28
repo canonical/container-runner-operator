@@ -47,12 +47,14 @@ class _Docker:
         _cmd = ["docker", command, *args]
 
         try:
-            output = subprocess.check_output(_cmd, universal_newlines=True)
+            result = subprocess.run(_cmd, check=True, text=True, capture_output=True)
             logger.info("Docker command succeeded: %s", _cmd)
-            return output
+            return result.stdout
         except subprocess.CalledProcessError as e:
             logger.error("Docker command failed: %s", _cmd)
-            logger.error("Error output: %s", e.output)
+            logger.error("Return code: %s", e.returncode)
+            logger.error("Output: %s", e.stdout)
+            logger.error("Error output: %s", e.stderr)
             raise
 
     def pull_image(self, image: str):
@@ -103,7 +105,7 @@ class ContainerRunner:
         self._watchtower_container = "my-watchtower-container"
 
     def run(self):
-        """"Run the OCI image specified in the ContainerRunner config."""
+        """Run the OCI image specified in the ContainerRunner config."""
         # Run the Ratings container
         try:
             self._docker.run_container(self._ratings_image, self._ratings_container)
@@ -116,6 +118,7 @@ class ContainerRunner:
         """Install the Docker snap package and run the OCI image."""
         # Install the Docker Snap
         self._docker.install()
+        logger.info("install docker called")
 
         # Run Watchtower to monitor the Ratings container
         try:
@@ -154,7 +157,45 @@ class ContainerRunner:
         # Re-run the Ratings container with environment variables
         try:
             self._docker.run_container(self._ratings_image, self._ratings_container, env_vars)
-            logger.info("Successfully re-ran container: %s with env vars: %s", self._ratings_container, env_vars)
+            logger.info(
+                "Successfully re-ran container: %s with env vars: %s",
+                self._ratings_container,
+                env_vars,
+            )
         except Exception as e:
             logger.error("Failed to re-run container: %s", e)
             raise
+
+    @property
+    def installed(self):
+        """Check if both images (ratings and watchtower) have been pulled."""
+        try:
+            # Inspect the images to see if they are pulled
+            ratings_image_inspect = self._docker._run_command("inspect", [self._ratings_image])
+            watchtower_image_inspect = self._docker._run_command(
+                "inspect", ["containrrr/watchtower"]
+            )
+            if ratings_image_inspect and watchtower_image_inspect:
+                return True
+        except Exception as e:
+            logger.info("Failed to inspect images locally: %s", e)
+
+        return False
+
+    @property
+    def running(self):
+        """Check if both containers (ratings and watchtower) are running."""
+        try:
+            # Inspect the ratings container to check if it's running
+            ratings_container_inspect = self._docker._run_command(
+                "inspect", ["-f", "{{.State.Running}}", self._ratings_container]
+            )
+            watchtower_container_inspect = self._docker._run_command(
+                "inspect", ["-f", "{{.State.Running}}", "watchtower"]
+            )
+            if "true" in ratings_container_inspect and "true" in watchtower_container_inspect:
+                return True
+        except Exception as e:
+            logger.info("Failed to inspect container state: %s", e)
+
+        return False

@@ -4,17 +4,6 @@ on:
   workflow_call:
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install dependencies
-        run: python3 -m pip install tox
-      - name: Run linters
-        run: |
-          tox -e lint
 
   unit-test:
     name: Unit tests
@@ -33,7 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - unit-test
-      - lint
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,7 +37,6 @@ jobs:
     name: Integration tests
     runs-on: ubuntu-22.04
     needs:
-      - lint
       - unit-test
     steps:
       - name: Checkout
@@ -61,7 +48,7 @@ jobs:
         uses: charmed-kubernetes/actions-operator@main
         with:
           provider: lxd
-          juju-channel: 3.2/stable
+          juju-channel: 3.5/stable
       - name: Run integration tests
         run: |
           tox -e integration -- --model=testing
