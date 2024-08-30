@@ -98,24 +98,31 @@ class _Docker:
 class ContainerRunner:
     """Class representing a managed container running on a host system."""
 
-    def __init__(self):
+    def __init__(self,
+                 container_image: str,
+                 container_port: int,
+                 host_port: int):
         self._docker = _Docker()
-        self._ratings_image = "ghcr.io/ubuntu/app-center-ratings:sha-7f05d08"
-        self._ratings_container = "my-ratings-container"
-        self._watchtower_container = "my-watchtower-container"
-        self._host_port = 8080
-        self._container_port = 8080
+        self._container_image = container_image
+        self._ratings_container = "managed_container"
+        self._watchtower_container = "watchtower_container"
+        self._container_port = container_port
+        self._host_port = host_port
 
     def set_ports(self, container_port: int, host_port: int):
         """Set the container port and host port used when running the OCI image."""
-        self._host_port = host_port
         self._container_port = container_port
+        self._host_port = host_port
+
+    def set_container_image(self, container_image: str):
+        """Set the container image that will be used when running the OCI image."""
+        self._container_image = container_image
 
     def run(self):
         """Run the OCI image specified in the ContainerRunner config."""
         # Run the Ratings container
         try:
-            self._docker.run_container(self._ratings_image, self._ratings_container, self._host_port, self._container_port)
+            self._docker.run_container(self._container_image, self._ratings_container, self._host_port, self._container_port)
             logger.info("Successfully started Ratings container: %s", self._ratings_container)
         except Exception as e:
             logger.error("Failed to start Ratings container: %s", e)
@@ -137,8 +144,8 @@ class ContainerRunner:
 
         # Pull the Ratings image
         try:
-            self._docker.pull_image(self._ratings_image)
-            logger.info("Successfully pulled ratings image: %s", self._ratings_image)
+            self._docker.pull_image(self._container_image)
+            logger.info("Successfully pulled ratings image: %s", self._container_image)
         except Exception as e:
             logger.error("Failed to pull ratings image: %s", e)
             raise
@@ -163,7 +170,7 @@ class ContainerRunner:
 
         # Re-run the Ratings container with environment variables
         try:
-            self._docker.run_container(self._ratings_image, self._ratings_container, self._host_port, self._container_port, env_vars)
+            self._docker.run_container(self._container_image, self._ratings_container, self._host_port, self._container_port, env_vars)
             logger.info(
                 "Successfully re-ran container: %s with env vars: %s",
                 self._ratings_container,
@@ -178,7 +185,7 @@ class ContainerRunner:
         """Check if both images (ratings and watchtower) have been pulled."""
         try:
             # Inspect the images to see if they are pulled
-            ratings_image_inspect = self._docker._run_command("inspect", [self._ratings_image])
+            ratings_image_inspect = self._docker._run_command("inspect", [self._container_image])
             watchtower_image_inspect = self._docker._run_command(
                 "inspect", ["containrrr/watchtower"]
             )

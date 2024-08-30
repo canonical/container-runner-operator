@@ -24,7 +24,10 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._container_runner = ContainerRunner()
+        container_image = _cast_config_to_string(self.config.get("container-image-uri"))
+        container_port = _cast_config_to_int(self.config.get("container-port"))
+        host_port = _cast_config_to_int(self.config.get("host-port"))
+        self._container_runner = ContainerRunner(container_image, container_port, host_port)
 
         # Initialise the integration with PostgreSQL
         self._database = DatabaseRequires(self, relation_name="database", database_name="ratings")
@@ -45,10 +48,13 @@ class ContainerRunnerCharm(ops.CharmBase):
         # Load env vars
         self._env_vars = self._load_env_file()
         # Load ports from Charm config
+        container_image = _cast_config_to_string(self.config.get("container-image-uri"))
         container_port = _cast_config_to_int(self.config.get("container-port"))
         host_port = _cast_config_to_int(self.config.get("host-port"))
         # Set ports to be used when running the container in the ContainerRunner
         self._container_runner.set_ports(container_port, host_port)
+        # Set the container image the runner will manage
+        self._container_runner.set_container_image(container_image)
         try:
             logger.info("Updating and resuming snap service for Ratings.")
             if self._env_vars:
@@ -193,6 +199,14 @@ if __name__ == "__main__":  # pragma: nocover
 def _cast_config_to_int(config_value: bool | int | float | str | None) -> int:
     """Casts the Juju config value type to an int."""
     if isinstance(config_value, int):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not an int: {config_value}")
+
+
+def _cast_config_to_string(config_value: bool | int | float | str | None) -> str:
+    """Casts the Juju config value type to a str."""
+    if isinstance(config_value, str):
         return config_value
     else:
         raise ValueError(f"Config value is not an int: {config_value}")

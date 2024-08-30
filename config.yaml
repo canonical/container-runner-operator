@@ -9,6 +9,11 @@ options:
     default: 8080
     description: |
         The external port on the host machine that maps to the container's internal port, allowing access to the application from outside the container.
+  container-image-uri:
+    type: string
+    default: hello-world
+    description: |
+        Image or image URI that will be run by the container runner. 
   env-vars:
     type: secret
     description: | 

@@ -4,12 +4,14 @@ from container_runner import ContainerRunner
 
 
 class TestRatings(unittest.TestCase):
+    """Functional tests designed to test the ContainerRunner Class isolated from the Charm lifecycle hooks."""
+
     def setUp(self):
-        self.container_runner = ContainerRunner()
+        self.container_runner = ContainerRunner("ghcr.io/ubuntu/app-center-ratings:sha-7f05d08", 8080, 8080)
         if not self.container_runner.installed:
             self.container_runner.install()
 
-    def test_lifecycle(self):
+    def test_ratings_rock_lifecycle(self):
         self.assertTrue(self.container_runner.installed)
 
         self.container_runner.run()
@@ -18,7 +20,7 @@ class TestRatings(unittest.TestCase):
         env_vars = {"Foo": "foo", "Bar": "bar"}
         self.container_runner.configure(env_vars)
 
-        # Check if the container is running
+        # Check if the container is running post configuration
         self.assertTrue(self.container_runner.running)
 
         # Inspect the container's environment variables
