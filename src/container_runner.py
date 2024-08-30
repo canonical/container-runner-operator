@@ -77,7 +77,7 @@ class _Docker:
 
     def run_container(self, image: str, container_name: str, env_vars: Optional[dict] = None):
         """Run a container with Docker, optionally passing environment variables."""
-        docker_args = ["-d", "--name", container_name]
+        docker_args = ["-d", "--name", container_name, "-p", "8000:8080"]
         if env_vars:
             for key, value in env_vars.items():
                 docker_args.extend(["-e", f"{key}={value}"])
@@ -100,7 +100,7 @@ class ContainerRunner:
 
     def __init__(self):
         self._docker = _Docker()
-        self._ratings_image = "ghcr.io/ubuntu/app-center-ratings:sha-69fd697"
+        self._ratings_image = "ghcr.io/ubuntu/app-center-ratings:sha-7f05d08"
         self._ratings_container = "my-ratings-container"
         self._watchtower_container = "my-watchtower-container"
 
