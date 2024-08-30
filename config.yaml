@@ -1,13 +1,14 @@
 options:
-  env:
-    type: string
-    default: "dev"
-    description: "Application environment."
-  log-level:
-    type: string
-    default: "info"
+  container-port:
+    type: int 
+    default: 8080
     description: |
-        Available log level settings are "info", "warning", "error" and "debug".
+        The internal port on which the application inside the container listens for web traffic.
+  host-port:
+    type: int
+    default: 8080
+    description: |
+        The external port on the host machine that maps to the container's internal port, allowing access to the application from outside the container.
   env-vars:
     type: secret
     description: | 

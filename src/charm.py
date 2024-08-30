@@ -42,7 +42,13 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def _on_config_changed(self, _):
         """Update the env vars and restart the OCI container."""
+        # Load env vars
         self._env_vars = self._load_env_file()
+        # Load ports from Charm config
+        container_port = _cast_config_to_int(self.config.get("container-port"))
+        host_port = _cast_config_to_int(self.config.get("host-port"))
+        # Set ports to be used when running the container in the ContainerRunner
+        self._container_runner.set_ports(container_port, host_port)
         try:
             logger.info("Updating and resuming snap service for Ratings.")
             if self._env_vars:
@@ -182,3 +188,11 @@ class ContainerRunnerCharm(ops.CharmBase):
 
 if __name__ == "__main__":  # pragma: nocover
     ops.main(ContainerRunnerCharm)
+
+
+def _cast_config_to_int(config_value: bool | int | float | str | None) -> int:
+    """Casts the Juju config value type to an int."""
+    if isinstance(config_value, int):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not an int: {config_value}")

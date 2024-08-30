@@ -96,7 +96,7 @@ class TestCharm(unittest.TestCase):
     @patch("charm.DatabaseRequires.fetch_relation_data", lambda x: {0: DB_RELATION_DATA})
     def test_ratings_db_connection_string(self):
         self.harness.add_relation("database", "postgresql", unit_data=DB_RELATION_DATA)
-        expected = "postgres://username:password@postgres:5432/ratings"
+        expected = "postgresql://username:password@postgres:5432/ratings"
         self.assertEqual(self.harness.charm._db_connection_string(), expected)
 
     @mock.patch("charm.ContainerRunnerCharm._update_service_config")
@@ -123,7 +123,7 @@ class TestCharm(unittest.TestCase):
     @mock.patch("charm.ContainerRunner.configure")
     def test_update_service_config(self, _conf, _db_string, _proxy):
         # Set env and log-level
-        self.harness.update_config({"env": "test-env", "log-level": "debug"})
+        self.harness.update_config({"host-port": 1234, "container-port": 4321})
 
         # If no relation, wait on relation
         self.harness.charm._update_service_config()
@@ -142,11 +142,11 @@ class TestCharm(unittest.TestCase):
         _proxy.assert_called_once()
 
         # Configure is called with the correct values
-        _conf.assert_called_with({'DB_CONNECTION_STRING': 'bar'})
+        _conf.assert_called_with({'APP_POSTGRES_URI': 'bar'})
 
         # Check the ports have been opened
         opened_ports = {(p.protocol, p.port) for p in self.harness.charm.unit.opened_ports()}
-        self.assertEqual(opened_ports, {("tcp", 443)})
+        self.assertEqual(opened_ports, {("tcp", 8000)})
 
         # Check status is active
         self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
