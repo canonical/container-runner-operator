@@ -37,6 +37,7 @@ class ContainerRunnerCharm(ops.CharmBase):
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
         # Attempt to load the env file
+        self._env_vars = {}
         self._env_vars = self._load_env_file()
 
     def _on_config_changed(self, _):
@@ -56,12 +57,12 @@ class ContainerRunnerCharm(ops.CharmBase):
     def _load_env_file(self):
         """Attempt to load and validate the .env files from resources and secrets."""
         env_file_path = None
-        env_vars = {}
+        env_vars = self._env_vars
 
         # Load env vars from Juju resource
         try:
             env_file_path = self.model.resources.fetch('env-file')
-            env_vars = dotenv_values(env_file_path)
+            env_vars.update(dotenv_values(env_file_path))
             if not env_vars:
                 raise ValueError("The .env file is empty or has invalid formatting.")
             logging.info(".env file loaded successfully.")
@@ -113,8 +114,8 @@ class ContainerRunnerCharm(ops.CharmBase):
         try:
             secret = self.model.get_secret(id=secret_id)
             env_var_buffer = secret.get_content(refresh=True)["env-vars"]
-            env_vars = dotenv_values(stream=StringIO(env_var_buffer))
-            return env_vars
+            secret_env_vars = dotenv_values(stream=StringIO(env_var_buffer))
+            return secret_env_vars
         except ops.SecretNotFoundError:
             logger.error(f"secret {secret_id!r} not found.")
             raise
@@ -139,12 +140,12 @@ class ContainerRunnerCharm(ops.CharmBase):
 
         # Ensure squid proxy
         self._set_proxy()
-        self._env_vars.update({"DB_CONNECTION_STRING": connection_string})
+        self._env_vars.update({"APP_POSTGRES_URI": connection_string})
         try:
             self._container_runner.configure(self._env_vars)
         except Exception as e:
             self.unit.status = ops.BlockedStatus(f"Failed to start configure container runner: {str(e)}")
-        self.unit.open_port(protocol="tcp", port=443)
+        self.unit.open_port(protocol="tcp", port=8000)
         self.unit.status = ActiveStatus()
 
     def _db_connection_string(self) -> str:
@@ -164,7 +165,7 @@ class ContainerRunnerCharm(ops.CharmBase):
 
         if username and password and endpoints:
             # FIXME: We contruct the db connection aware of ratings, pass on the parts in future
-            connection_string = f"postgres://{username}:{password}@{endpoints}/ratings"
+            connection_string = f"postgresql://{username}:{password}@{endpoints}/ratings"
             logger.info(f"Generated database connection string with endpoints: {endpoints}.")
             return connection_string
         else:
