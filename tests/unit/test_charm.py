@@ -49,7 +49,7 @@ class TestCharm(unittest.TestCase):
         # Run the assertions
         self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
         _run.assert_called_once()
-        _configure.assert_not_called()
+        _configure.assert_called_once()
 
     @mock.patch("charm.ContainerRunner.configure")
     @mock.patch("charm.ContainerRunner.run")
@@ -62,10 +62,12 @@ class TestCharm(unittest.TestCase):
         _run.assert_called_once()
         _configure.assert_called_once_with({"FOO": "foo", "BAR": "bar", "FIZZ": None})
 
-    def test_on_config_changed_no_env_vars(self):
+    @mock.patch("charm.ContainerRunner.configure")
+    def test_on_config_changed_no_env_vars(self, _configure):
         # Setup the handler
         self.harness.charm.on.config_changed.emit()
         # Run the assertions
+        _configure.assert_called_once()
         self.assertEqual(
             self.harness.charm.unit.status,
             ActiveStatus(),
@@ -146,7 +148,7 @@ class TestCharm(unittest.TestCase):
 
         # Check the ports have been opened
         opened_ports = {(p.protocol, p.port) for p in self.harness.charm.unit.opened_ports()}
-        self.assertEqual(opened_ports, {("tcp", 8000)})
+        self.assertEqual(opened_ports, {("tcp", 1234)})
 
         # Check status is active
         self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
