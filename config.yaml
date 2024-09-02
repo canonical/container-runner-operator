@@ -1,17 +1,17 @@
 options:
   container-port:
     type: int 
-    default: 8080
+    default: 80
     description: |
         The internal port on which the application inside the container listens for web traffic.
   host-port:
     type: int
-    default: 8080
+    default: 80
     description: |
         The external port on the host machine that maps to the container's internal port, allowing access to the application from outside the container.
   container-image-uri:
     type: string
-    default: hello-world
+    default: nginxdemos/hello
     description: |
         Image or image URI that will be run by the container runner. 
   env-vars:
