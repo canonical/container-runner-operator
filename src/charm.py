@@ -173,7 +173,7 @@ class ContainerRunnerCharm(ops.CharmBase):
             self._container_runner.configure(self._env_vars)
         except Exception as e:
             self.unit.status = ops.BlockedStatus(f"Failed to start configure container runner: {str(e)}")
-        self.unit.open_port(protocol="tcp", port=8000)
+        self.unit.open_port(protocol="tcp", port=_cast_config_to_int(self.config.get("host-port")))
         self.unit.status = ActiveStatus()
 
     def _db_connection_string(self) -> str:
