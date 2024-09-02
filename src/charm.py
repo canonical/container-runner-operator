@@ -19,6 +19,22 @@ from ops.model import ActiveStatus, MaintenanceStatus
 logger = logging.getLogger(__name__)
 
 
+def _cast_config_to_int(config_value: bool | int | float | str | None) -> int:
+    """Casts the Juju config value type to an int."""
+    if isinstance(config_value, int):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not an int: {config_value}")
+
+
+def _cast_config_to_string(config_value: bool | int | float | str | None) -> str:
+    """Casts the Juju config value type to a str."""
+    if isinstance(config_value, str):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not an int: {config_value}")
+
+
 class ContainerRunnerCharm(ops.CharmBase):
     """Main operator class for ratings service."""
 
@@ -194,19 +210,3 @@ class ContainerRunnerCharm(ops.CharmBase):
 
 if __name__ == "__main__":  # pragma: nocover
     ops.main(ContainerRunnerCharm)
-
-
-def _cast_config_to_int(config_value: bool | int | float | str | None) -> int:
-    """Casts the Juju config value type to an int."""
-    if isinstance(config_value, int):
-        return config_value
-    else:
-        raise ValueError(f"Config value is not an int: {config_value}")
-
-
-def _cast_config_to_string(config_value: bool | int | float | str | None) -> str:
-    """Casts the Juju config value type to a str."""
-    if isinstance(config_value, str):
-        return config_value
-    else:
-        raise ValueError(f"Config value is not an int: {config_value}")
