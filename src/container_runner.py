@@ -104,7 +104,7 @@ class ContainerRunner:
                  host_port: int):
         self._docker = _Docker()
         self._container_image = container_image
-        self._ratings_container = "managed_container"
+        self._container_name = "managed_container"
         self._watchtower_container = "watchtower_container"
         self._container_port = container_port
         self._host_port = host_port
@@ -117,13 +117,14 @@ class ContainerRunner:
     def set_container_image(self, container_image: str):
         """Set the container image that will be used when running the OCI image."""
         self._container_image = container_image
+        logger.info(f"Container image updated to: {self._container_image}")
 
     def run(self):
         """Run the OCI image specified in the ContainerRunner config."""
         # Run the Ratings container
         try:
-            self._docker.run_container(self._container_image, self._ratings_container, self._host_port, self._container_port)
-            logger.info("Successfully started Ratings container: %s", self._ratings_container)
+            self._docker.run_container(self._container_image, self._container_name, self._host_port, self._container_port)
+            logger.info("Successfully started Ratings container: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to start Ratings container: %s", e)
             raise
@@ -136,8 +137,8 @@ class ContainerRunner:
 
         # Run Watchtower to monitor the Ratings container
         try:
-            self._docker.run_watchtower(self._watchtower_container, self._ratings_container)
-            logger.info("Successfully started Watchtower to monitor: %s", self._ratings_container)
+            self._docker.run_watchtower(self._watchtower_container, self._container_name)
+            logger.info("Successfully started Watchtower to monitor: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to start Watchtower: %s", e)
             raise
@@ -154,26 +155,26 @@ class ContainerRunner:
         """Configure and restart the Ratings container with updated environment variables."""
         # Stop the current Ratings container and wait for it to fully stop
         try:
-            self._docker.stop_container(self._ratings_container)
-            logger.info("Successfully stopped container: %s", self._ratings_container)
+            self._docker.stop_container(self._container_name)
+            logger.info("Successfully stopped container: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to stop container: %s", e)
             raise
 
         # Remove the Ratings container and ensure it's fully removed
         try:
-            self._docker.remove_container(self._ratings_container)
-            logger.info("Successfully removed container: %s", self._ratings_container)
+            self._docker.remove_container(self._container_name)
+            logger.info("Successfully removed container: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to remove container: %s", e)
             raise
 
         # Re-run the Ratings container with environment variables
         try:
-            self._docker.run_container(self._container_image, self._ratings_container, self._host_port, self._container_port, env_vars)
+            self._docker.run_container(self._container_image, self._container_name, self._host_port, self._container_port, env_vars)
             logger.info(
                 "Successfully re-ran container: %s with env vars: %s",
-                self._ratings_container,
+                self._container_name,
                 env_vars,
             )
         except Exception as e:
@@ -202,7 +203,7 @@ class ContainerRunner:
         try:
             # Inspect the ratings container to check if it's running
             ratings_container_inspect = self._docker._run_command(
-                "inspect", ["-f", "{{.State.Running}}", self._ratings_container]
+                "inspect", ["-f", "{{.State.Running}}", self._container_name]
             )
             watchtower_container_inspect = self._docker._run_command(
                 "inspect", ["-f", "{{.State.Running}}", "watchtower"]

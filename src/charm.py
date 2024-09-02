@@ -61,6 +61,7 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def _on_config_changed(self, _):
         """Update the env vars and restart the OCI container."""
+        self.unit.status = ops.MaintenanceStatus()
         # Load env vars
         self._env_vars = self._load_env_file()
         # Load ports from Charm config
@@ -73,9 +74,8 @@ class ContainerRunnerCharm(ops.CharmBase):
         self._container_runner.set_container_image(container_image)
         try:
             logger.info("Updating and resuming snap service for Ratings.")
-            if self._env_vars:
-                self._container_runner.configure(self._env_vars)
-            # self.unit.open_port(protocol="tcp", port=PORT)
+            self._container_runner.configure(self._env_vars)
+            self.unit.open_port(protocol="tcp", port=host_port)
             self.unit.status = ops.ActiveStatus()
             logger.info("Ratings service started successfully.")
         except Exception as e:
@@ -113,8 +113,7 @@ class ContainerRunnerCharm(ops.CharmBase):
 
         try:
             logger.info("Updating and resuming snap service for Ratings.")
-            if self._env_vars:
-                self._container_runner.configure(self._env_vars)
+            self._container_runner.configure(self._env_vars)
             # self.unit.open_port(protocol="tcp", port=PORT)
             self.unit.status = ops.ActiveStatus()
             logger.info("Ratings service started successfully.")
