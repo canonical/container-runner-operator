@@ -8,6 +8,7 @@ import secrets
 import grpc
 import ratings_api.ratings_features_user_pb2 as pb2
 import ratings_api.ratings_features_user_pb2_grpc as pb2_grpc
+import requests
 from pytest import mark
 from pytest_operator.plugin import OpsTest
 
@@ -43,7 +44,19 @@ async def test_database_relation(ops_test: OpsTest):
         ),
     )
 
+@mark.abort_on_fail
+async def test_hello_world_image(ops_test: OpsTest):
+    """Test that the charm can deploy a container that can then be reached via curl."""
+    """End-to-end test to ensure the app can interact with the database."""
+    status = await ops_test.model.get_status()  # noqa: F821
+    unit = list(status.applications[CONTAINER_RUNNER].units)[0]
+    print(f"Connecting to address: {status}")
+    address = status["applications"][CONTAINER_RUNNER]["units"][unit]["public-address"]
+    print(f"Connecting to address: {address}")
+    connection_string = f"http://{address}:80"
 
+    response = requests.get(connection_string)
+    assert "Hello World" in response.text
 # @mark.abort_on_fail
 # async def test_ratings_register_user(ops_test: OpsTest):
 #     """End-to-end test to ensure the app can interact with the database."""
