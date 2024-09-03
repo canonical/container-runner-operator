@@ -26,7 +26,7 @@ class TestRatings(unittest.TestCase):
         # Inspect the container's environment variables
         env_output = self.container_runner._docker._run_command(
             "inspect",
-            ["-f", "{{json .Config.Env}}", self.container_runner._ratings_container],
+            ["-f", "{{json .Config.Env}}", self.container_runner._container_name],
         )
         env_vars_in_container = eval(env_output)
         for key, value in env_vars.items():
