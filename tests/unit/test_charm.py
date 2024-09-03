@@ -144,7 +144,7 @@ class TestCharm(unittest.TestCase):
         _proxy.assert_called_once()
 
         # Configure is called with the correct values
-        _conf.assert_called_with({'APP_POSTGRES_URI': 'bar'})
+        _conf.assert_called_with({"APP_POSTGRES_URI": "bar"})
 
         # Check the ports have been opened
         opened_ports = {(p.protocol, p.port) for p in self.harness.charm.unit.opened_ports()}

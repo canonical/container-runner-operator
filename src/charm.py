@@ -89,7 +89,7 @@ class ContainerRunnerCharm(ops.CharmBase):
 
         # Load env vars from Juju resource
         try:
-            env_file_path = self.model.resources.fetch('env-file')
+            env_file_path = self.model.resources.fetch("env-file")
             env_vars.update(dotenv_values(env_file_path))
             if not env_vars:
                 raise ValueError("The .env file is empty or has invalid formatting.")
@@ -171,7 +171,9 @@ class ContainerRunnerCharm(ops.CharmBase):
         try:
             self._container_runner.configure(self._env_vars)
         except Exception as e:
-            self.unit.status = ops.BlockedStatus(f"Failed to start configure container runner: {str(e)}")
+            self.unit.status = ops.BlockedStatus(
+                f"Failed to start configure container runner: {str(e)}"
+            )
         self.unit.open_port(protocol="tcp", port=_cast_config_to_int(self.config.get("host-port")))
         self.unit.status = ActiveStatus()
 

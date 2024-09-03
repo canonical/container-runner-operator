@@ -7,7 +7,9 @@ class TestRatings(unittest.TestCase):
     """Functional tests designed to test the ContainerRunner Class isolated from the Charm lifecycle hooks."""
 
     def setUp(self):
-        self.container_runner = ContainerRunner("ghcr.io/ubuntu/app-center-ratings:sha-7f05d08", 8080, 8080)
+        self.container_runner = ContainerRunner(
+            "ghcr.io/ubuntu/app-center-ratings:sha-7f05d08", 8080, 8080
+        )
         if not self.container_runner.installed:
             self.container_runner.install()
 

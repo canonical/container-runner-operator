@@ -75,7 +75,14 @@ class _Docker:
         ]
         return self._run_command("run", docker_args)
 
-    def run_container(self, image: str, container_name: str, host_port: int, container_port: int, env_vars: Optional[dict] = None):
+    def run_container(
+        self,
+        image: str,
+        container_name: str,
+        host_port: int,
+        container_port: int,
+        env_vars: Optional[dict] = None,
+    ):
         """Run a container with Docker, optionally passing environment variables."""
         docker_args = ["-d", "--name", container_name, "-p", f"{host_port}:{container_port}"]
         if env_vars:
@@ -98,10 +105,7 @@ class _Docker:
 class ContainerRunner:
     """Class representing a managed container running on a host system."""
 
-    def __init__(self,
-                 container_image: str,
-                 container_port: int,
-                 host_port: int):
+    def __init__(self, container_image: str, container_port: int, host_port: int):
         self._docker = _Docker()
         self._container_image = container_image
         self._container_name = "managed_container"
@@ -123,7 +127,9 @@ class ContainerRunner:
         """Run the OCI image specified in the ContainerRunner config."""
         # Run the Ratings container
         try:
-            self._docker.run_container(self._container_image, self._container_name, self._host_port, self._container_port)
+            self._docker.run_container(
+                self._container_image, self._container_name, self._host_port, self._container_port
+            )
             logger.info("Successfully started Ratings container: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to start Ratings container: %s", e)
@@ -171,7 +177,13 @@ class ContainerRunner:
 
         # Re-run the Ratings container with environment variables
         try:
-            self._docker.run_container(self._container_image, self._container_name, self._host_port, self._container_port, env_vars)
+            self._docker.run_container(
+                self._container_image,
+                self._container_name,
+                self._host_port,
+                self._container_port,
+                env_vars,
+            )
             logger.info(
                 "Successfully re-ran container: %s with env vars: %s",
                 self._container_name,
