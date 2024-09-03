@@ -3,10 +3,11 @@ import unittest
 from unittest import mock
 from unittest.mock import patch
 
-from charm import ContainerRunnerCharm
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
+
+from charm import ContainerRunnerCharm
 
 
 class MockDatabaseEvent:

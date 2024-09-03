@@ -12,9 +12,10 @@ from io import StringIO
 
 import ops
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
-from container_runner import ContainerRunner
 from dotenv import dotenv_values
 from ops.model import ActiveStatus, MaintenanceStatus
+
+from container_runner import ContainerRunner
 
 logger = logging.getLogger(__name__)
 

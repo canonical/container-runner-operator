@@ -3,12 +3,8 @@
 # See LICENSE file for licensing details.
 
 import asyncio
-import secrets
 import time
 
-import grpc
-import ratings_api.ratings_features_user_pb2 as pb2
-import ratings_api.ratings_features_user_pb2_grpc as pb2_grpc
 import requests
 from pytest import mark
 from pytest_operator.plugin import OpsTest
