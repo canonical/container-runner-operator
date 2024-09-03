@@ -194,7 +194,7 @@ class ContainerRunnerCharm(ops.CharmBase):
         endpoints = data.get("endpoints")
 
         if username and password and endpoints:
-            # FIXME: We contruct the db connection aware of ratings, pass on the parts in future
+            # FIXME: We construct the db connection aware of ratings, pass on the parts in future
             connection_string = f"postgresql://{username}:{password}@{endpoints}/ratings"
             logger.info(f"Generated database connection string with endpoints: {endpoints}.")
             return connection_string
