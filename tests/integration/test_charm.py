@@ -87,7 +87,7 @@ async def test_config_update(ops_test: OpsTest):
             "host-port": "5678",
             "container-port": "5678",
             "container-image-uri": "hashicorp/http-echo",
-            "database-expected": "false"
+            "database-expected": "false",
         }
     )
     await ops_test.model.wait_for_idle(
