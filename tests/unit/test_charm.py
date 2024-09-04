@@ -3,11 +3,10 @@ import unittest
 from unittest import mock
 from unittest.mock import patch
 
+from charm import ContainerRunnerCharm
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
-
-from charm import ContainerRunnerCharm
 
 
 class MockDatabaseEvent:
@@ -17,7 +16,7 @@ class MockDatabaseEvent:
 
 
 DB_RELATION_DATA = {
-    "database": "ratings",
+    "database": "managed_container",
     "endpoints": "postgres:5432",
     "password": "password",
     "username": "username",
@@ -118,11 +117,11 @@ class TestCharm(unittest.TestCase):
 
         _configure.assert_called_with({"Foo": "foo", "Bar": "bar"})
 
-    def test_ratings_db_connection_string_no_relation(self):
+    def test_managed_container_db_connection_string_no_relation(self):
         self.assertEqual(self.harness.charm._db_connection_string(), "")
 
     @patch("charm.DatabaseRequires.fetch_relation_data", lambda x: {0: DB_RELATION_DATA})
-    def test_ratings_db_connection_string(self):
+    def test_managed_container_db_connection_string(self):
         self.harness.add_relation("database", "postgresql", unit_data=DB_RELATION_DATA)
         expected = "postgresql://username:password@postgres:5432/ratings"
         self.assertEqual(self.harness.charm._db_connection_string(), expected)
@@ -140,7 +139,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("charm.ContainerRunnerCharm._update_service_config")
     @patch("charm.DatabaseRequires.is_resource_created", lambda x: True)
-    def test_ratings_database_created_database_success(self, _update):
+    def test_created_database(self, _update):
         rel_id = self.harness.add_relation("database", "postgresql", unit_data=DB_RELATION_DATA)
         self.harness.charm._database.on.database_created.emit(MockDatabaseEvent(id=rel_id))
 

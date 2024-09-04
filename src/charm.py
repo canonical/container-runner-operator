@@ -2,9 +2,9 @@
 # Copyright 2023 Canonical
 # See LICENSE file for licensing details.
 
-"""Ubuntu Software Centre ratings service.
+"""Container Runner Charm.
 
-A backend service to support application ratings in the new Ubuntu Software Centre.
+Charm for deploying and managing OCI images and their database relations.
 """
 import logging
 import os
@@ -12,10 +12,9 @@ from io import StringIO
 
 import ops
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
+from container_runner import ContainerRunner
 from dotenv import dotenv_values
 from ops.model import ActiveStatus, MaintenanceStatus
-
-from container_runner import ContainerRunner
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ def _cast_config_to_string(config_value: bool | int | float | str | None) -> str
 
 
 class ContainerRunnerCharm(ops.CharmBase):
-    """Main operator class for ratings service."""
+    """Main operator class for Container Runner charm."""
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -90,14 +89,14 @@ class ContainerRunnerCharm(ops.CharmBase):
             self.unit.status = ops.WaitingStatus("Waiting for database relation")
             return
         try:
-            logger.info("Updating and resuming snap service for Ratings.")
+            logger.info("Updating and resuming snap service for Container Runner.")
             self._container_runner.configure(self._env_vars)
             self.unit.open_port(protocol="tcp", port=host_port)
             self.unit.status = ops.ActiveStatus()
-            logger.info("Ratings service started successfully.")
+            logger.info("Container Runner service started successfully.")
         except Exception as e:
-            logger.error(f"Failed to start Ratings service: {str(e)}")
-            self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
+            logger.error(f"Failed to start Container Runner: {str(e)}")
+            self.unit.status = ops.BlockedStatus(f"Failed to start Container Runner: {str(e)}")
 
     def _load_env_file(self):
         """Attempt to load and validate the .env files from resources and secrets."""
@@ -124,7 +123,7 @@ class ContainerRunnerCharm(ops.CharmBase):
         return env_vars
 
     def _on_start(self, _):
-        """Start Ratings."""
+        """Start Container Runner."""
         if self._waiting_for_database_relation:
             self.unit.status = ops.WaitingStatus("Waiting for database relation")
             return
@@ -133,14 +132,14 @@ class ContainerRunnerCharm(ops.CharmBase):
             self._container_runner.run()
 
         try:
-            logger.info("Updating and resuming snap service for Ratings.")
+            logger.info("Updating and resuming snap service for Container Runner.")
             self._container_runner.configure(self._env_vars)
             # self.unit.open_port(protocol="tcp", port=PORT)
             self.unit.status = ops.ActiveStatus()
-            logger.info("Ratings service started successfully.")
+            logger.info("Container Runner started successfully.")
         except Exception as e:
-            logger.error(f"Failed to start Ratings service: {str(e)}")
-            self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
+            logger.error(f"Failed to start Container Runner: {str(e)}")
+            self.unit.status = ops.BlockedStatus(f"Failed to start Container Runner: {str(e)}")
 
     def _on_upgrade_charm(self, _):
         """Ensure the snap is refreshed (in channel) if there are new revisions."""
@@ -154,7 +153,7 @@ class ContainerRunnerCharm(ops.CharmBase):
             self._container_runner.install()
             self.unit.status = MaintenanceStatus("Installation complete, waiting for database.")
         except Exception as e:
-            logger.error(f"Failed to install Ratings via snap: {e}")
+            logger.error(f"Failed to install Container Runner via snap: {e}")
             self.unit.status = ops.BlockedStatus(str(e))
 
     def _get_secret_content(self, secret_id):
@@ -174,14 +173,14 @@ class ContainerRunnerCharm(ops.CharmBase):
         self._update_service_config()
 
     def _update_service_config(self):
-        """Update the service config and restart Ratings."""
-        logger.info("Updating config and resterting Ratings.")
+        """Update the service config and restart Container Runner."""
+        logger.info("Updating config and resterting Container Runner.")
         if self.model.get_relation("database") is None:
             logger.warning("No database relation found. Waiting.")
             self.unit.status = ops.WaitingStatus("Waiting for database relation")
             return
 
-        self.unit.status = ops.MaintenanceStatus("Attempting to update Ratings config.")
+        self.unit.status = ops.MaintenanceStatus("Attempting to update Container Runner config.")
         # Get connection string from Juju relation to db
         connection_string = self._db_connection_string()
 

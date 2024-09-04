@@ -125,14 +125,14 @@ class ContainerRunner:
 
     def run(self):
         """Run the OCI image specified in the ContainerRunner config."""
-        # Run the Ratings container
+        # Run the managed container
         try:
             self._docker.run_container(
                 self._container_image, self._container_name, self._host_port, self._container_port
             )
-            logger.info("Successfully started Ratings container: %s", self._container_name)
+            logger.info("Successfully started managed container: %s", self._container_name)
         except Exception as e:
-            logger.error("Failed to start Ratings container: %s", e)
+            logger.error("Failed to start managed container: %s", e)
 
     def install(self):
         """Install the Docker snap package and run the OCI image."""
@@ -140,7 +140,7 @@ class ContainerRunner:
         self._docker.install()
         logger.info("install docker called")
 
-        # Run Watchtower to monitor the Ratings container
+        # Run Watchtower to monitor the managed container
         try:
             self._docker.run_watchtower(self._watchtower_container, self._container_name)
             logger.info("Successfully started Watchtower to monitor: %s", self._container_name)
@@ -148,17 +148,17 @@ class ContainerRunner:
             logger.error("Failed to start Watchtower: %s", e)
             raise
 
-        # Pull the Ratings image
+        # Pull the managed image
         try:
             self._docker.pull_image(self._container_image)
-            logger.info("Successfully pulled ratings image: %s", self._container_image)
+            logger.info("Successfully pulled image: %s", self._container_image)
         except Exception as e:
-            logger.error("Failed to pull ratings image: %s", e)
+            logger.error("Failed to pull image: %s", e)
             raise
 
     def configure(self, env_vars=None):
-        """Configure and restart the Ratings container with updated environment variables."""
-        # Stop the current Ratings container and wait for it to fully stop
+        """Configure and restart the managed container with updated environment variables."""
+        # Stop the current managed container and wait for it to fully stop
         if self.running:
             try:
                 self._docker.stop_container(self._container_name)
@@ -167,7 +167,7 @@ class ContainerRunner:
                 logger.error("Failed to stop container: %s", e)
                 raise
 
-            # Remove the Ratings container and ensure it's fully removed
+            # Remove the managed container and ensure it's fully removed
             try:
                 self._docker.remove_container(self._container_name)
                 logger.info("Successfully removed container: %s", self._container_name)
@@ -175,7 +175,7 @@ class ContainerRunner:
                 logger.error("Failed to remove container: %s", e)
                 raise
 
-        # Re-run the Ratings container with environment variables
+        # Re-run the managed container with environment variables
         try:
             self._docker.run_container(
                 self._container_image,
@@ -195,14 +195,14 @@ class ContainerRunner:
 
     @property
     def installed(self):
-        """Check if both images (ratings and watchtower) have been pulled."""
+        """Check if both images have been pulled."""
         try:
             # Inspect the images to see if they are pulled
-            ratings_image_inspect = self._docker._run_command("inspect", [self._container_image])
+            managed_image_inspect = self._docker._run_command("inspect", [self._container_image])
             watchtower_image_inspect = self._docker._run_command(
                 "inspect", ["containrrr/watchtower"]
             )
-            if ratings_image_inspect and watchtower_image_inspect:
+            if managed_image_inspect and watchtower_image_inspect:
                 return True
         except Exception as e:
             logger.info("Failed to inspect images locally: %s", e)
@@ -211,16 +211,16 @@ class ContainerRunner:
 
     @property
     def running(self):
-        """Check if both containers (ratings and watchtower) are running."""
+        """Check if both containers are running."""
         try:
-            # Inspect the ratings container to check if it's running
-            ratings_container_inspect = self._docker._run_command(
+            # Inspect the managed container to check if it's running
+            managed_container_inspect = self._docker._run_command(
                 "inspect", ["-f", "{{.State.Running}}", self._container_name]
             )
             watchtower_container_inspect = self._docker._run_command(
                 "inspect", ["-f", "{{.State.Running}}", "watchtower"]
             )
-            if "true" in ratings_container_inspect and "true" in watchtower_container_inspect:
+            if "true" in managed_container_inspect and "true" in watchtower_container_inspect:
                 return True
         except Exception as e:
             logger.info("Failed to inspect container state: %s", e)

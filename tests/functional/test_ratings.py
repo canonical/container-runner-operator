@@ -3,7 +3,7 @@ import unittest
 from container_runner import ContainerRunner
 
 
-class TestRatings(unittest.TestCase):
+class TestContainerRunner(unittest.TestCase):
     """Functional tests designed to test the ContainerRunner Class isolated from the Charm lifecycle hooks."""
 
     def setUp(self):
@@ -13,7 +13,7 @@ class TestRatings(unittest.TestCase):
         if not self.container_runner.installed:
             self.container_runner.install()
 
-    def test_ratings_rock_lifecycle(self):
+    def test_rock_lifecycle(self):
         self.assertTrue(self.container_runner.installed)
 
         self.container_runner.run()
