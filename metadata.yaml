@@ -1,13 +1,13 @@
 # This file populates the Overview on Charmhub.
 # See https://juju.is/docs/sdk/metadata-reference for a checklist and guidance.
 
-name: ubuntu-software-ratings
-display-name: Ubuntu Software Ratings
+name: container-runner
+display-name: Container Runner 
 
-summary: Ubuntu App Ratings Service
+summary: Container Runner Charm
 
 description: |
-  Backend service to support application ratings in the new Ubuntu Software Centre.
+  Charm for deploying and managing OCI images and their database relations. 
 
 assumes:
   - juju >= 3.5
