@@ -51,10 +51,10 @@ class _Docker:
             logger.info("Docker command succeeded: %s", _cmd)
             return result.stdout
         except subprocess.CalledProcessError as e:
-            logger.error("Docker command failed: %s", _cmd)
-            logger.error("Return code: %s", e.returncode)
-            logger.error("Output: %s", e.stdout)
-            logger.error("Error output: %s", e.stderr)
+            logger.warning("Docker command failed: %s", _cmd)
+            logger.warning("Return code: %s", e.returncode)
+            logger.warning("Output: %s", e.stdout)
+            logger.warning("Error output: %s", e.stderr)
             raise
 
     def pull_image(self, image: str):
@@ -133,7 +133,6 @@ class ContainerRunner:
             logger.info("Successfully started Ratings container: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to start Ratings container: %s", e)
-            raise
 
     def install(self):
         """Install the Docker snap package and run the OCI image."""
@@ -160,20 +159,21 @@ class ContainerRunner:
     def configure(self, env_vars=None):
         """Configure and restart the Ratings container with updated environment variables."""
         # Stop the current Ratings container and wait for it to fully stop
-        try:
-            self._docker.stop_container(self._container_name)
-            logger.info("Successfully stopped container: %s", self._container_name)
-        except Exception as e:
-            logger.error("Failed to stop container: %s", e)
-            raise
+        if self.running:
+            try:
+                self._docker.stop_container(self._container_name)
+                logger.info("Successfully stopped container: %s", self._container_name)
+            except Exception as e:
+                logger.error("Failed to stop container: %s", e)
+                raise
 
-        # Remove the Ratings container and ensure it's fully removed
-        try:
-            self._docker.remove_container(self._container_name)
-            logger.info("Successfully removed container: %s", self._container_name)
-        except Exception as e:
-            logger.error("Failed to remove container: %s", e)
-            raise
+            # Remove the Ratings container and ensure it's fully removed
+            try:
+                self._docker.remove_container(self._container_name)
+                logger.info("Successfully removed container: %s", self._container_name)
+            except Exception as e:
+                logger.error("Failed to remove container: %s", e)
+                raise
 
         # Re-run the Ratings container with environment variables
         try:

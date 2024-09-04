@@ -20,6 +20,14 @@ from container_runner import ContainerRunner
 logger = logging.getLogger(__name__)
 
 
+def _cast_config_to_bool(config_value: bool | int | float | str | None) -> bool:
+    """Casts the Juju config value type to an int."""
+    if isinstance(config_value, bool):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not a bool: {config_value}")
+
+
 def _cast_config_to_int(config_value: bool | int | float | str | None) -> int:
     """Casts the Juju config value type to an int."""
     if isinstance(config_value, int):
@@ -60,6 +68,11 @@ class ContainerRunnerCharm(ops.CharmBase):
         self._env_vars = {}
         self._env_vars = self._load_env_file()
 
+        # Track state of charm
+        self._waiting_for_database_relation = _cast_config_to_bool(
+            self.config.get("database-expected")
+        )
+
     def _on_config_changed(self, _):
         """Update the env vars and restart the OCI container."""
         self.unit.status = ops.MaintenanceStatus()
@@ -73,6 +86,9 @@ class ContainerRunnerCharm(ops.CharmBase):
         self._container_runner.set_ports(container_port, host_port)
         # Set the container image the runner will manage
         self._container_runner.set_container_image(container_image)
+        if self._waiting_for_database_relation:
+            self.unit.status = ops.WaitingStatus("Waiting for database relation")
+            return
         try:
             logger.info("Updating and resuming snap service for Ratings.")
             self._container_runner.configure(self._env_vars)
@@ -109,8 +125,12 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def _on_start(self, _):
         """Start Ratings."""
-        logger.info("Start hook called")
-        self._container_runner.run()
+        if self._waiting_for_database_relation:
+            self.unit.status = ops.WaitingStatus("Waiting for database relation")
+            return
+
+        if not self._container_runner.running:
+            self._container_runner.run()
 
         try:
             logger.info("Updating and resuming snap service for Ratings.")
@@ -156,7 +176,6 @@ class ContainerRunnerCharm(ops.CharmBase):
     def _update_service_config(self):
         """Update the service config and restart Ratings."""
         logger.info("Updating config and resterting Ratings.")
-
         if self.model.get_relation("database") is None:
             logger.warning("No database relation found. Waiting.")
             self.unit.status = ops.WaitingStatus("Waiting for database relation")
@@ -166,9 +185,11 @@ class ContainerRunnerCharm(ops.CharmBase):
         # Get connection string from Juju relation to db
         connection_string = self._db_connection_string()
 
+        self._env_vars.update({"APP_POSTGRES_URI": connection_string})
+        self._waiting_for_database_relation = False
+
         # Ensure squid proxy
         self._set_proxy()
-        self._env_vars.update({"APP_POSTGRES_URI": connection_string})
         try:
             self._container_runner.configure(self._env_vars)
         except Exception as e:

@@ -14,6 +14,11 @@ options:
     default: nginxdemos/hello
     description: |
         Image or image URI that will be run by the container runner. 
+  database-expected:
+    type: boolean
+    default: false
+    description: |
+        Flag that determines if a database relation should be waited for before starting the container runner.
   env-vars:
     type: secret
     description: | 

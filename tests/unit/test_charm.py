@@ -64,6 +64,19 @@ class TestCharm(unittest.TestCase):
         _configure.assert_called_once_with({"FOO": "foo", "BAR": "bar", "FIZZ": None})
 
     @mock.patch("charm.ContainerRunner.configure")
+    @mock.patch("charm.ContainerRunner.run")
+    def test_on_start_with_waiting_on_db_relation(self, _run, _configure):
+        # Setup the handler
+        self.harness.charm._waiting_for_database_relation = True
+        self.harness.charm.on.start.emit()
+        # Run the assertions
+        self.assertEqual(
+            self.harness.charm.unit.status, WaitingStatus("Waiting for database relation")
+        )
+        _run.assert_not_called()
+        _configure.assert_not_called()
+
+    @mock.patch("charm.ContainerRunner.configure")
     def test_on_config_changed_no_env_vars(self, _configure):
         # Setup the handler
         self.harness.charm.on.config_changed.emit()
@@ -72,6 +85,18 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(
             self.harness.charm.unit.status,
             ActiveStatus(),
+        )
+
+    @mock.patch("charm.ContainerRunner.configure")
+    def test_on_config_changed_waiting_on_db_relation(self, _configure):
+        # Setup the handler
+        self.harness.charm._waiting_for_database_relation = True
+        self.harness.charm.on.config_changed.emit()
+        # Run the assertions
+        _configure.assert_not_called()
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            WaitingStatus("Waiting for database relation"),
         )
 
     @mock.patch("charm.ContainerRunner.configure")
