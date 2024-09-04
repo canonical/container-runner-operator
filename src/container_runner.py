@@ -48,10 +48,10 @@ class _Docker:
 
         try:
             result = subprocess.run(_cmd, check=True, text=True, capture_output=True)
-            logger.info("Docker command succeeded: %s", _cmd)
+            logger.debug("Docker command succeeded: %s", _cmd)
             return result.stdout
         except subprocess.CalledProcessError as e:
-            logger.warning("Docker command failed: %s", _cmd)
+            logger.debug("Docker command failed: %s", _cmd)
             logger.warning("Return code: %s", e.returncode)
             logger.warning("Output: %s", e.stdout)
             logger.warning("Error output: %s", e.stderr)
