@@ -18,7 +18,7 @@ target-version = ["py38"]
 # Linting tools configuration
 [tool.ruff]
 line-length = 99
-select = ["E", "W", "F", "C", "N", "D", "I001"]
+select = ["E", "W", "F", "C", "N", "D", "I", "I001"]
 extend-ignore = [
     "D203",
     "D204",
@@ -31,6 +31,8 @@ extend-ignore = [
     "D408",
     "D409",
     "D413",
+    "E501",
+    "I001",
 ]
 ignore = ["E501", "D107"]
 extend-exclude = ["__pycache__", "*.egg_info", "*pb2.py", "*pb2_grpc.py"]
