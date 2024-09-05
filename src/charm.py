@@ -116,7 +116,7 @@ class ContainerRunnerCharm(ops.CharmBase):
             secret_env_vars = self._get_secret_content(self.config.get("env-vars"))
             if secret_env_vars:
                 env_vars.update(secret_env_vars)
-                logging.info(f"Loaded secret env vars: {env_vars}")
+                logging.debug("Secret env-vars successfully loaded")
         except Exception as e:
             logging.info(f"Failed to load secret env vars: {e}")
 
