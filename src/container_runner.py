@@ -126,6 +126,9 @@ class ContainerRunner:
     def run(self):
         """Run the OCI image specified in the ContainerRunner config."""
         # Run the managed container
+        if self.running:
+            logger.info("Managed container already running, skipping run command.")
+            return
         try:
             self._docker.run_container(
                 self._container_image, self._container_name, self._host_port, self._container_port
@@ -133,6 +136,7 @@ class ContainerRunner:
             logger.info("Successfully started managed container: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to start managed container: %s", e)
+            raise
 
     def install(self):
         """Install the Docker snap package and run the OCI image."""
