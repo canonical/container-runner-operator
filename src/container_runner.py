@@ -84,6 +84,7 @@ class _Docker:
         env_vars: Optional[dict] = None,
     ):
         """Run a container with Docker, optionally passing environment variables."""
+        # TODO: when the charm is powercycled, this is called again but docker has spun it up again.
         docker_args = ["-d", "--name", container_name, "-p", f"{host_port}:{container_port}"]
         if env_vars:
             for key, value in env_vars.items():

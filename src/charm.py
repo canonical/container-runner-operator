@@ -57,31 +57,38 @@ class ContainerRunnerCharm(ops.CharmBase):
         host_port = _cast_config_to_int(self.config.get("host-port"))
         self._container_runner = ContainerRunner(container_image, container_port, host_port)
 
-        # Initialise the integration with PostgreSQL
+        # Initialise the integration with PostgreSQL. Currently hardcoded to ratings
+        # TODO: add database name as config, use that to tell if we expect a db + makes this generic
         self._database = DatabaseRequires(self, relation_name="database", database_name="ratings")
 
         # Observe common Juju events
-        self.framework.observe(self._database.on.database_created, self._on_database_created)
+        # TODO: Do we want to use all these hooks? Or would it be better to use just _on_config?
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self._database.on.database_created, self._on_database_created)
 
         # Attempt to load the env file
+        # Initialise to an empty dict as this is mutated over time as hooks are fired.
         self._env_vars = {}
+
         self._env_vars = self._load_env_file()
 
         # Track state of charm
+        # TODO: remove (see above)
         self._waiting_for_database_relation = _cast_config_to_bool(
             self.config.get("database-expected")
         )
 
     def _on_config_changed(self, _):
         """Update the env vars and restart the OCI container."""
-        self.unit.status = ops.MaintenanceStatus()
+        # TODO: hook into the event and log what actually changed based on the event.
+        self.unit.status = ops.MaintenanceStatus("Attempting to update config")
         # Load env vars
         self._env_vars = self._load_env_file()
         # Load ports from Charm config
+        # TODO: write some tests to poke at what happens if we want to override / remove config
         container_image = _cast_config_to_string(self.config.get("container-image-uri"))
         container_port = _cast_config_to_int(self.config.get("container-port"))
         host_port = _cast_config_to_int(self.config.get("host-port"))
@@ -112,7 +119,11 @@ class ContainerRunnerCharm(ops.CharmBase):
             # Get .env file
             env_file_path = self.model.resources.fetch("env-file")
             # Filter out environment variables with values set to None (see dotenv_values docs for why).
-            filtered_env_vars: Dict[str, str] = {key: value for key, value in dotenv_values(env_file_path).items() if value is not None}
+            filtered_env_vars: Dict[str, str] = {
+                key: value
+                for key, value in dotenv_values(env_file_path).items()
+                if value is not None
+            }
             env_vars.update(filtered_env_vars)
             if not env_vars:
                 raise ValueError("The .env file is empty or has invalid formatting.")
@@ -169,7 +180,11 @@ class ContainerRunnerCharm(ops.CharmBase):
             secret = self.model.get_secret(id=secret_id)
             env_var_buffer = secret.get_content(refresh=True)["env-vars"]
             # Filter out environment variables with values set to None (see dotenv_values docs for why).
-            filtered_secret_env_vars: Dict[str, str] = {key: value for key, value in dotenv_values(stream=StringIO(env_var_buffer)).items() if value is not None}
+            filtered_secret_env_vars: Dict[str, str] = {
+                key: value
+                for key, value in dotenv_values(stream=StringIO(env_var_buffer)).items()
+                if value is not None
+            }
             return filtered_secret_env_vars
         except ops.SecretNotFoundError:
             logger.error(f"secret {secret_id!r} not found.")
@@ -182,6 +197,8 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def _update_service_config(self):
         """Update the service config and restart Container Runner."""
+        # TODO: if a db is related, and the charm crashed, is the database_created event fired off again?
+        # TODO: Move this to a separate field and not shared with env_vars so we can wipe env_vars each time and preserve the connection string.
         logger.info("Updating config and resterting Container Runner.")
         if self.model.get_relation("database") is None:
             logger.warning("No database relation found. Waiting.")
