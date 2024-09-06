@@ -345,183 +345,230 @@ class TestContainerRunner(unittest.TestCase):
             container_image="test_image", container_port=80, host_port=8080
         )
 
-    @mock.patch("container_runner._Docker.run_container")
-    def test_run_success(self, _mock_run_container):
-        self.container_runner.run()
-        _mock_run_container.assert_called_once_with("test_image", "managed_container", 8080, 80)
-
     @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
     @mock.patch("container_runner._Docker.run_container")
-    def test_run_already_running(self, _mock_run_container, _mock_running):
-        _mock_running.return_value = True
+    def test_run(self, _mock_run_container, _mock_running):
+        # Common expected args for the container run
+        expected_args = ("test_image", "managed_container", 8080, 80)
 
-        with self.assertLogs("container_runner", level="INFO") as log:
-            self.container_runner.run()
-        _mock_run_container.assert_not_called()
-        self.assertIn(
-            "INFO:container_runner:Managed container already running, skipping run command.",
-            log.output,
-        )
+        test_cases = [
+            {
+                "name": "run success",
+            },
+            {
+                "name": "already running, skip run",
+                "running": True,
+                "log_message": "INFO:container_runner:Managed container already running, skipping run command.",
+            },
+            {
+                "name": "run failure",
+                "expected_exception": "Failed to start container",
+            },
+        ]
 
-    @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
-    @mock.patch(
-        "container_runner._Docker.run_container",
-        side_effect=Exception("Failed to start container"),
-    )
-    def test_run_failure(self, _mock_run_container, _mock_running):
-        _mock_running.return_value = False
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                # Setup
+                _mock_running.return_value = case.get("running", False)
 
-        with self.assertRaises(Exception) as e:
-            self.container_runner.run()
-        self.assertEqual(str(e.exception), "Failed to start container")
-        _mock_run_container.assert_called_once_with("test_image", "managed_container", 8080, 80)
+                # Test execution
+                if case.get("expected_exception"):
+                    _mock_run_container.side_effect = Exception(case.get("expected_exception"))
+                    with self.assertRaises(Exception) as e:
+                        self.container_runner.run()
+                    self.assertEqual(str(e.exception), case["expected_exception"])
+                else:
+                    if case.get("log_message"):
+                        with self.assertLogs("container_runner", level="INFO") as log:
+                            self.container_runner.run()
+                        self.assertIn(case["log_message"], log.output)
+                    else:
+                        self.container_runner.run()
+
+                # Assertions
+                if case.get("running", False):
+                    _mock_run_container.assert_not_called()
+                else:
+                    _mock_run_container.assert_called_once_with(*expected_args)
+
+                # Reset mocks for the next test case
+                _mock_run_container.reset_mock()
 
     @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
     @mock.patch("container_runner._Docker.stop_container")
     @mock.patch("container_runner._Docker.remove_container")
     @mock.patch("container_runner._Docker.run_container")
-    def test_configure_success(
+    def test_configure(
         self, _mock_run_container, _mock_remove_container, _mock_stop_container, _mock_running
     ):
-        _mock_running.return_value = True
+        # Common variables
+        container_name = "managed_container"
+        image_name = "test_image"
+        env_vars = {"ENV_VAR": "value"}
 
-        self.container_runner.configure(env_vars={"ENV_VAR": "value"})
+        test_cases = [
+            {
+                "name": "configure success",
+                "expected_run_call": True,
+            },
+            {
+                "name": "stop failure",
+                "stop_side_effect": Exception("Failed to stop container"),
+                "expected_exception": "Failed to stop container",
+                "expected_remove_call": False,
+                "expected_run_call": False,
+            },
+            {
+                "name": "remove failure",
+                "remove_side_effect": Exception("Failed to remove container"),
+                "expected_exception": "Failed to remove container",
+                "expected_run_call": False,
+            },
+            {
+                "name": "re-run failure",
+                "run_side_effect": Exception("Failed to re-run container"),
+                "expected_exception": "Failed to re-run container",
+            },
+            {
+                "name": "not running, no stop or remove",
+                "running": False,
+                "expected_stop_call": False,
+                "expected_remove_call": False,
+            },
+        ]
 
-        _mock_stop_container.assert_called_once_with("managed_container")
-        _mock_remove_container.assert_called_once_with("managed_container")
-        _mock_run_container.assert_called_once_with(
-            "test_image", "managed_container", 8080, 80, {"ENV_VAR": "value"}
-        )
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                # Setup
+                _mock_running.return_value = case.get("running", True)
+                _mock_stop_container.side_effect = case.get("stop_side_effect")
+                _mock_remove_container.side_effect = case.get("remove_side_effect")
+                _mock_run_container.side_effect = case.get("run_side_effect")
 
-    @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
-    @mock.patch(
-        "container_runner._Docker.stop_container",
-        side_effect=Exception("Failed to stop container"),
-    )
-    @mock.patch("container_runner._Docker.remove_container")
-    @mock.patch("container_runner._Docker.run_container")
-    def test_configure_stop_failure(
-        self, _mock_run_container, _mock_remove_container, _mock_stop_container, _mock_running
-    ):
-        _mock_running.return_value = True
+                # Test execution
+                if case.get("expected_exception"):
+                    with self.assertRaises(Exception) as e:
+                        self.container_runner.configure(env_vars=env_vars)
+                    self.assertEqual(str(e.exception), case["expected_exception"])
+                else:
+                    self.container_runner.configure(env_vars=env_vars)
 
-        with self.assertRaises(Exception) as e:
-            self.container_runner.configure(env_vars={"ENV_VAR": "value"})
-        self.assertEqual(str(e.exception), "Failed to stop container")
+                # Assertions for stop_container
+                if case.get("expected_stop_call", True):
+                    _mock_stop_container.assert_called_once_with(container_name)
+                else:
+                    _mock_stop_container.assert_not_called()
 
-        _mock_stop_container.assert_called_once_with("managed_container")
-        _mock_remove_container.assert_not_called()
-        _mock_run_container.assert_not_called()
+                # Assertions for remove_container
+                if case.get("expected_remove_call", True):
+                    _mock_remove_container.assert_called_once_with(container_name)
+                else:
+                    _mock_remove_container.assert_not_called()
 
-    @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
-    @mock.patch("container_runner._Docker.stop_container")
-    @mock.patch(
-        "container_runner._Docker.remove_container",
-        side_effect=Exception("Failed to remove container"),
-    )
-    @mock.patch("container_runner._Docker.run_container")
-    def test_configure_remove_failure(
-        self, _mock_run_container, _mock_remove_container, _mock_stop_container, _mock_running
-    ):
-        _mock_running.return_value = True
+                # Assertions for run_container
+                if case.get("expected_run_call", True):
+                    _mock_run_container.assert_called_once_with(
+                        image_name, container_name, 8080, 80, env_vars
+                    )
+                else:
+                    _mock_run_container.assert_not_called()
 
-        with self.assertRaises(Exception) as e:
-            self.container_runner.configure(env_vars={"ENV_VAR": "value"})
-        self.assertEqual(str(e.exception), "Failed to remove container")
-
-        _mock_stop_container.assert_called_once_with("managed_container")
-        _mock_remove_container.assert_called_once_with("managed_container")
-        _mock_run_container.assert_not_called()
-
-    @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
-    @mock.patch("container_runner._Docker.stop_container")
-    @mock.patch("container_runner._Docker.remove_container")
-    @mock.patch(
-        "container_runner._Docker.run_container",
-        side_effect=Exception("Failed to re-run container"),
-    )
-    def test_configure_rerun_failure(
-        self, _mock_run_container, _mock_remove_container, _mock_stop_container, _mock_running
-    ):
-        _mock_running.return_value = True
-
-        with self.assertRaises(Exception) as e:
-            self.container_runner.configure(env_vars={"ENV_VAR": "value"})
-        self.assertEqual(str(e.exception), "Failed to re-run container")
-
-        _mock_stop_container.assert_called_once_with("managed_container")
-        _mock_remove_container.assert_called_once_with("managed_container")
-        _mock_run_container.assert_called_once_with(
-            "test_image", "managed_container", 8080, 80, {"ENV_VAR": "value"}
-        )
-
-    @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
-    @mock.patch("container_runner._Docker.run_container")
-    def test_configure_no_stop_or_remove_when_not_running(
-        self, _mock_run_container, _mock_running
-    ):
-        _mock_running.return_value = False
-
-        self.container_runner.configure(env_vars={"ENV_VAR": "value"})
-
-        _mock_run_container.assert_called_once_with(
-            "test_image", "managed_container", 8080, 80, {"ENV_VAR": "value"}
-        )
+                # Reset mocks for the next test case
+                _mock_stop_container.reset_mock()
+                _mock_remove_container.reset_mock()
+                _mock_run_container.reset_mock()
 
     @mock.patch("container_runner._Docker._run_command")
-    def test_installed_success(self, _mock_run_command):
-        _mock_run_command.side_effect = ["managed_image_details", "watchtower_image_details"]
+    def test_installed(self, _mock_run_command):
+        # Common variables
+        image_name = "test_image"
+        watchtower_image = "containrrr/watchtower"
 
-        self.assertTrue(self.container_runner.installed)
-        _mock_run_command.assert_has_calls(
-            [mock.call("inspect", ["test_image"]), mock.call("inspect", ["containrrr/watchtower"])]
-        )
+        test_cases = [
+            {
+                "name": "installed success",
+                "run_command_side_effect": ["managed_image_details", "watchtower_image_details"],
+                "expected_installed": True,
+                "expected_calls": [
+                    mock.call("inspect", [image_name]),
+                    mock.call("inspect", [watchtower_image]),
+                ],
+            },
+            {
+                "name": "installed failure inspection",
+                "run_command_side_effect": Exception("Failed to inspect image"),
+                "expected_calls": [mock.call("inspect", [image_name])],
+            },
+            {
+                "name": "installed partial failure",
+                "run_command_side_effect": ["managed_image_details", None],
+                "expected_calls": [
+                    mock.call("inspect", [image_name]),
+                    mock.call("inspect", [watchtower_image]),
+                ],
+            },
+        ]
+
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                # Setup
+                _mock_run_command.side_effect = case["run_command_side_effect"]
+
+                # Test execution
+                self.assertEqual(self.container_runner.installed, case.get("expected_installed", False))
+
+                # Assertions
+                _mock_run_command.assert_has_calls(case["expected_calls"])
+
+                # Reset mock for the next test case
+                _mock_run_command.reset_mock()
 
     @mock.patch("container_runner._Docker._run_command")
-    def test_installed_failure_inspection(self, _mock_run_command):
-        _mock_run_command.side_effect = Exception("Failed to inspect image")
+    def test_running(self, _mock_run_command):
+        # Common variables
+        managed_container = "managed_container"
+        watchtower_container = "watchtower"
+        inspect_format = ["-f", "{{.State.Running}}"]
 
-        self.assertFalse(self.container_runner.installed)
-        _mock_run_command.assert_called_once_with("inspect", ["test_image"])
+        test_cases = [
+            {
+                "name": "running success",
+                "run_command_side_effect": ["true", "true"],
+                "expected_running": True,
+                "expected_calls": [
+                    mock.call("inspect", inspect_format + [managed_container]),
+                    mock.call("inspect", inspect_format + [watchtower_container]),
+                ],
+            },
+            {
+                "name": "running failure inspection",
+                "run_command_side_effect": Exception("Failed to inspect container"),
+                "expected_calls": [
+                    mock.call("inspect", inspect_format + [managed_container]),
+                ],
+            },
+            {
+                "name": "running partial failure",
+                "run_command_side_effect": ["true", "false"],
+                "expected_calls": [
+                    mock.call("inspect", inspect_format + [managed_container]),
+                    mock.call("inspect", inspect_format + [watchtower_container]),
+                ],
+            },
+        ]
 
-    @mock.patch("container_runner._Docker._run_command")
-    def test_installed_partial_failure(self, _mock_run_command):
-        _mock_run_command.side_effect = ["managed_image_details", None]
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                # Setup
+                _mock_run_command.side_effect = case["run_command_side_effect"]
 
-        self.assertFalse(self.container_runner.installed)
-        _mock_run_command.assert_has_calls(
-            [mock.call("inspect", ["test_image"]), mock.call("inspect", ["containrrr/watchtower"])]
-        )
+                # Test execution
+                self.assertEqual(
+                    self.container_runner.running, case.get("expected_running", False)
+                )
 
-    @mock.patch("container_runner._Docker._run_command")
-    def test_running_success(self, _mock_run_command):
-        _mock_run_command.side_effect = ["true", "true"]
+                # Assertions
+                _mock_run_command.assert_has_calls(case["expected_calls"])
 
-        self.assertTrue(self.container_runner.running)
-        _mock_run_command.assert_has_calls(
-            [
-                mock.call("inspect", ["-f", "{{.State.Running}}", "managed_container"]),
-                mock.call("inspect", ["-f", "{{.State.Running}}", "watchtower"]),
-            ]
-        )
-
-    @mock.patch("container_runner._Docker._run_command")
-    def test_running_failure_inspection(self, _mock_run_command):
-        _mock_run_command.side_effect = Exception("Failed to inspect container")
-
-        self.assertFalse(self.container_runner.running)
-        _mock_run_command.assert_called_once_with(
-            "inspect", ["-f", "{{.State.Running}}", "managed_container"]
-        )
-
-    @mock.patch("container_runner._Docker._run_command")
-    def test_running_partial_failure(self, _mock_run_command):
-        _mock_run_command.side_effect = ["true", "false"]
-
-        self.assertFalse(self.container_runner.running)
-        _mock_run_command.assert_has_calls(
-            [
-                mock.call("inspect", ["-f", "{{.State.Running}}", "managed_container"]),
-                mock.call("inspect", ["-f", "{{.State.Running}}", "watchtower"]),
-            ]
-        )
+                # Reset mock for the next test case
+                _mock_run_command.reset_mock()
