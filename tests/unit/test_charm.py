@@ -46,42 +46,41 @@ class TestCharm(unittest.TestCase):
     def test_on_start(self, _run, _configure):
         test_cases = [
             {
-                "env_vars": {},
-                "expected_status": ActiveStatus(),
-                "waiting_for_db": False,
+                "name": "started with no configuration",
             },
             {
+                "name": "started with configuration",
                 "env_vars": {"FOO": "foo", "BAR": "bar", "FIZZ": None},
-                "expected_status": ActiveStatus(),
-                "waiting_for_db": False,
             },
             {
-                "env_vars": {},
-                "expected_status": WaitingStatus("Waiting for database relation"),
+                "name": "started when waiting for database",
                 "waiting_for_db": True,
             },
         ]
-
         for case in test_cases:
-            with self.subTest(case=case):
-                # Set environment variables if provided
-                if case["env_vars"]:
-                    self.harness.charm._env_vars = case["env_vars"]
-
-                # Set waiting for database flag if needed
-                self.harness.charm._waiting_for_database_relation = case["waiting_for_db"]
+            with self.subTest(case=case["name"]):
+                # Test setup
+                env_vars = case.get("env_vars", {})
+                self.harness.charm._env_vars = env_vars
+                waiting_for_db = case.get("waiting_for_db", False)
+                self.harness.charm._waiting_for_database_relation = waiting_for_db
+                expected_status = (
+                    WaitingStatus("Waiting for database relation")
+                    if waiting_for_db
+                    else ActiveStatus()
+                )
 
                 # Emit the start event
                 self.harness.charm.on.start.emit()
 
                 # Assertions
-                self.assertEqual(self.harness.charm.unit.status, case["expected_status"])
-                if case["waiting_for_db"]:
+                self.assertEqual(self.harness.charm.unit.status, expected_status)
+                if waiting_for_db:
                     _run.assert_not_called()
                     _configure.assert_not_called()
                 else:
                     _run.assert_called_once()
-                    _configure.assert_called_once_with(case["env_vars"])
+                    _configure.assert_called_once_with(env_vars)
 
                 # Reset mock calls for the next test case
                 _run.reset_mock()
@@ -91,46 +90,42 @@ class TestCharm(unittest.TestCase):
     def test_on_config_changed(self, _configure):
         test_cases = [
             {
-                "env_vars": {},
-                "secrets": {},
-                "waiting_for_db": False,
-                "expected_status": ActiveStatus(),
+                "name": "no secrets, no env vars, not waiting for db",
             },
             {
-                "env_vars": {},
-                "secrets": {},
+                "name": "no secrets, no env vars, waiting for db",
                 "waiting_for_db": True,
-                "expected_status": WaitingStatus("Waiting for database relation"),
             },
             {
-                "env_vars": {},
+                "name": "secrets provided, no env vars, not waiting for db",
                 "secrets": {"Foo": "foo", "Bar": "bar"},
-                "waiting_for_db": False,
-                "expected_status": ActiveStatus(),
             },
             {
+                "name": "env vars provided, no secrets, not waiting for db",
                 "env_vars": {"FOO": "foo", "BAR": "bar", "FIZZ": None},
-                "secrets": {},
-                "waiting_for_db": False,
-                "expected_status": ActiveStatus(),
             },
             {
+                "name": "both secrets and env vars provided, not waiting for db",
                 "secrets": {"Foo": "foo"},
                 "env_vars": {"BAR": "bar", "FIZZ": None},
-                "waiting_for_db": False,
-                "expected_status": ActiveStatus(),
             },
         ]
-
         for case in test_cases:
-            with self.subTest(case=case):
-                # Set up any necessary conditions like waiting for db relation or environment variables
-                self.harness.charm._waiting_for_database_relation = case["waiting_for_db"]
-
-                self.harness.charm._env_vars = case["env_vars"]
-
-                if case.get("secrets") != {}:
-                    secret = self.harness.model.unit.add_secret({"env-vars": "Foo=foo\nBar=bar"})
+            with self.subTest(case=case["name"]):
+                # Test setup
+                env_vars = case.get("env_vars", {})
+                self.harness.charm._env_vars = env_vars
+                secrets = case.get("secrets", {})
+                waiting_for_db = case.get("waiting_for_db", False)
+                self.harness.charm._waiting_for_database_relation = waiting_for_db
+                expected_status = (
+                    WaitingStatus("Waiting for database relation")
+                    if waiting_for_db
+                    else ActiveStatus()
+                )
+                if secrets:
+                    secret_string = "\n".join(f"{key}={value}" for key, value in secrets.items())
+                    secret = self.harness.model.unit.add_secret({"env-vars": secret_string})
                     self.harness.update_config(
                         {"env-vars": secret._canonicalize_id(str(secret.id))}
                     )
@@ -139,12 +134,11 @@ class TestCharm(unittest.TestCase):
                 self.harness.charm.on.config_changed.emit()
 
                 # Run assertions
-                self.assertEqual(self.harness.charm.unit.status, case["expected_status"])
-
-                if case["waiting_for_db"]:
+                self.assertEqual(self.harness.charm.unit.status, expected_status)
+                if waiting_for_db:
                     _configure.assert_not_called()
                 else:
-                    expected_config = {**case.get("secrets", {}), **case.get("env_vars", {})}
+                    expected_config = {**secrets, **env_vars}
                     _configure.assert_called_with(expected_config)
 
                 # Reset the mock for the next test case
