@@ -9,20 +9,21 @@ Charm for deploying and managing OCI images and their database relations.
 import logging
 import os
 from io import StringIO
-
 import ops
+
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
 from container_runner import ContainerRunner
 from dotenv import dotenv_values
 from ops.model import ActiveStatus, MaintenanceStatus
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 # A config value can be none, but that only happens if you are requesting an undefined key.
-ConfigValue = bool | int | float | str | None
+_ConfigValue = bool | int | float | str | None
 
 
-def _cast_config_to_bool(config_value: ConfigValue) -> bool:
+def _cast_config_to_bool(config_value: _ConfigValue) -> bool:
     """Casts the Juju config value type to an int."""
     if isinstance(config_value, bool):
         return config_value
@@ -30,7 +31,7 @@ def _cast_config_to_bool(config_value: ConfigValue) -> bool:
         raise ValueError(f"Config value is not a bool: {config_value}")
 
 
-def _cast_config_to_int(config_value: ConfigValue) -> int:
+def _cast_config_to_int(config_value: _ConfigValue) -> int:
     """Casts the Juju config value type to an int."""
     if isinstance(config_value, int):
         return config_value
@@ -38,7 +39,7 @@ def _cast_config_to_int(config_value: ConfigValue) -> int:
         raise ValueError(f"Config value is not an int: {config_value}")
 
 
-def _cast_config_to_string(config_value: ConfigValue) -> str:
+def _cast_config_to_string(config_value: _ConfigValue) -> str:
     """Casts the Juju config value type to a str."""
     if isinstance(config_value, str):
         return config_value
@@ -101,15 +102,18 @@ class ContainerRunnerCharm(ops.CharmBase):
             logger.error(f"Failed to start Container Runner: {str(e)}")
             self.unit.status = ops.BlockedStatus(f"Failed to start Container Runner: {str(e)}")
 
-    def _load_env_file(self):
-        """Attempt to load and validate the .env files from resources and secrets."""
+    def _load_env_file(self) -> Dict[str, str]:
+        """Attempt to load and validate the .env files from resources and secrets and append to the existing env_vars dict."""
         env_file_path = None
         env_vars = self._env_vars
 
         # Load env vars from Juju resource
         try:
+            # Get .env file
             env_file_path = self.model.resources.fetch("env-file")
-            env_vars.update(dotenv_values(env_file_path))
+            # Filter out environment variables with values set to None (see dotenv_values docs for why).
+            filtered_env_vars: Dict[str, str] = {key: value for key, value in dotenv_values(env_file_path).items() if value is not None}
+            env_vars.update(filtered_env_vars)
             if not env_vars:
                 raise ValueError("The .env file is empty or has invalid formatting.")
             logging.info(".env file loaded successfully.")
@@ -159,13 +163,14 @@ class ContainerRunnerCharm(ops.CharmBase):
             logger.error(f"Failed to install Container Runner via snap: {e}")
             self.unit.status = ops.BlockedStatus(str(e))
 
-    def _get_secret_content(self, secret_id):
+    def _get_secret_content(self, secret_id) -> Dict[str, str]:
         """Get the content of a Juju secret."""
         try:
             secret = self.model.get_secret(id=secret_id)
             env_var_buffer = secret.get_content(refresh=True)["env-vars"]
-            secret_env_vars = dotenv_values(stream=StringIO(env_var_buffer))
-            return secret_env_vars
+            # Filter out environment variables with values set to None (see dotenv_values docs for why).
+            filtered_secret_env_vars: Dict[str, str] = {key: value for key, value in dotenv_values(stream=StringIO(env_var_buffer)).items() if value is not None}
+            return filtered_secret_env_vars
         except ops.SecretNotFoundError:
             logger.error(f"secret {secret_id!r} not found.")
             raise
