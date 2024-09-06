@@ -3,8 +3,6 @@ from container_runner import _Docker, ContainerRunner
 from unittest import mock
 import subprocess
 
-# TODO: Could these not be table tests?
-
 
 class TestDocker(unittest.TestCase):
     def setUp(self):
