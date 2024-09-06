@@ -515,7 +515,9 @@ class TestContainerRunner(unittest.TestCase):
                 _mock_run_command.side_effect = case["run_command_side_effect"]
 
                 # Test execution
-                self.assertEqual(self.container_runner.installed, case.get("expected_installed", False))
+                self.assertEqual(
+                    self.container_runner.installed, case.get("expected_installed", False)
+                )
 
                 # Assertions
                 _mock_run_command.assert_has_calls(case["expected_calls"])
