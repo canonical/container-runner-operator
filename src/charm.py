@@ -18,8 +18,11 @@ from ops.model import ActiveStatus, MaintenanceStatus
 
 logger = logging.getLogger(__name__)
 
+# A config value can be none, but that only happens if you are requesting an undefined key.
+ConfigValue = bool | int | float | str | None
 
-def _cast_config_to_bool(config_value: bool | int | float | str | None) -> bool:
+
+def _cast_config_to_bool(config_value: ConfigValue) -> bool:
     """Casts the Juju config value type to an int."""
     if isinstance(config_value, bool):
         return config_value
@@ -27,7 +30,7 @@ def _cast_config_to_bool(config_value: bool | int | float | str | None) -> bool:
         raise ValueError(f"Config value is not a bool: {config_value}")
 
 
-def _cast_config_to_int(config_value: bool | int | float | str | None) -> int:
+def _cast_config_to_int(config_value: ConfigValue) -> int:
     """Casts the Juju config value type to an int."""
     if isinstance(config_value, int):
         return config_value
@@ -35,7 +38,7 @@ def _cast_config_to_int(config_value: bool | int | float | str | None) -> int:
         raise ValueError(f"Config value is not an int: {config_value}")
 
 
-def _cast_config_to_string(config_value: bool | int | float | str | None) -> str:
+def _cast_config_to_string(config_value: ConfigValue) -> str:
     """Casts the Juju config value type to a str."""
     if isinstance(config_value, str):
         return config_value
