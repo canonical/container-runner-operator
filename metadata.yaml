@@ -1,16 +1,16 @@
 # This file populates the Overview on Charmhub.
 # See https://juju.is/docs/sdk/metadata-reference for a checklist and guidance.
 
-name: ubuntu-software-ratings
-display-name: Ubuntu Software Ratings
+name: container-runner
+display-name: Container Runner 
 
-summary: Ubuntu App Ratings Service
+summary: Container Runner Charm
 
 description: |
-  Backend service to support application ratings in the new Ubuntu Software Centre.
+  Charm for deploying and managing OCI images and their database relations. 
 
 assumes:
-  - juju >= 3.1
+  - juju >= 3.5
 
 requires:
   database:
@@ -20,3 +20,13 @@ requires:
 peers:
   ratings-peers:
     interface: ratings_peers
+
+resources:
+  env-file:
+    type: file
+    filename: env-file.env
+    description: The .env file containing application configuration that can be stored insecurely
+
+secrets:
+  env-file-secret:
+    description: Secret containing the .env file data that needs to be stored securely.

@@ -2,73 +2,193 @@
 # Copyright 2023 Canonical
 # See LICENSE file for licensing details.
 
-"""Ubuntu Software Centre ratings service.
+"""Container Runner Charm.
 
-A backend service to support application ratings in the new Ubuntu Software Centre.
+Charm for deploying and managing OCI images and their database relations.
 """
-
 import logging
 import os
-import secrets
-from os import environ
-from pathlib import Path
-
+from io import StringIO
 import ops
+
 from charms.data_platform_libs.v0.data_interfaces import DatabaseCreatedEvent, DatabaseRequires
-from charms.operator_libs_linux.v1 import snap
+from container_runner import ContainerRunner
+from dotenv import dotenv_values
 from ops.model import ActiveStatus, MaintenanceStatus
-from ratings import Ratings
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-
-PATH = Path("/srv/app")
-UNIT_PATH = Path("/etc/systemd/system/ratings.service")
-CARGO_PATH = Path(environ.get("HOME", "/root")) / ".cargo/bin/cargo"
-PORT = 443
-NAME = "ratings"
-HOST = "0.0.0.0"
+# A config value can be none, but that only happens if you are requesting an undefined key.
+_ConfigValue = bool | int | float | str | None
 
 
-class RatingsCharm(ops.CharmBase):
-    """Main operator class for ratings service."""
+def _cast_config_to_bool(config_value: _ConfigValue) -> bool:
+    """Casts the Juju config value type to an int."""
+    if isinstance(config_value, bool):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not a bool: {config_value}")
+
+
+def _cast_config_to_int(config_value: _ConfigValue) -> int:
+    """Casts the Juju config value type to an int."""
+    if isinstance(config_value, int):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not an int: {config_value}")
+
+
+def _cast_config_to_string(config_value: _ConfigValue) -> str:
+    """Casts the Juju config value type to a str."""
+    if isinstance(config_value, str):
+        return config_value
+    else:
+        raise ValueError(f"Config value is not an int: {config_value}")
+
+
+class ContainerRunnerCharm(ops.CharmBase):
+    """Main operator class for Container Runner charm."""
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._ratings = Ratings()
+        container_image = _cast_config_to_string(self.config.get("container-image-uri"))
+        container_port = _cast_config_to_int(self.config.get("container-port"))
+        host_port = _cast_config_to_int(self.config.get("host-port"))
+        self._container_runner = ContainerRunner(container_image, container_port, host_port)
 
-        # Initialise the integration with PostgreSQL
+        # Initialise the integration with PostgreSQL. Currently hardcoded to ratings
+        # TODO: add database name as config, use that to tell if we expect a db + makes this generic
         self._database = DatabaseRequires(self, relation_name="database", database_name="ratings")
 
         # Observe common Juju events
-        self.framework.observe(self._database.on.database_created, self._on_database_created)
+        # TODO: Do we want to use all these hooks? Or would it be better to use just _on_config?
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self._database.on.database_created, self._on_database_created)
+
+        # Attempt to load the env file
+        # Initialise to an empty dict as this is mutated over time as hooks are fired.
+        self._env_vars = {}
+
+        self._env_vars = self._load_env_file()
+
+        # Track state of charm
+        # TODO: remove (see above)
+        self._waiting_for_database_relation = _cast_config_to_bool(
+            self.config.get("database-expected")
+        )
+
+    def _on_config_changed(self, _):
+        """Update the env vars and restart the OCI container."""
+        # TODO: hook into the event and log what actually changed based on the event.
+        self.unit.status = ops.MaintenanceStatus("Attempting to update config")
+        # Load env vars
+        self._env_vars = self._load_env_file()
+        # Load ports from Charm config
+        # TODO: write some tests to poke at what happens if we want to override / remove config
+        container_image = _cast_config_to_string(self.config.get("container-image-uri"))
+        container_port = _cast_config_to_int(self.config.get("container-port"))
+        host_port = _cast_config_to_int(self.config.get("host-port"))
+        # Set ports to be used when running the container in the ContainerRunner
+        self._container_runner.set_ports(container_port, host_port)
+        # Set the container image the runner will manage
+        self._container_runner.set_container_image(container_image)
+        if self._waiting_for_database_relation:
+            self.unit.status = ops.WaitingStatus("Waiting for database relation")
+            return
+        try:
+            logger.info("Updating and resuming snap service for Container Runner.")
+            self._container_runner.configure(self._env_vars)
+            self.unit.open_port(protocol="tcp", port=host_port)
+            self.unit.status = ops.ActiveStatus()
+            logger.info("Container Runner service started successfully.")
+        except Exception as e:
+            logger.error(f"Failed to start Container Runner: {str(e)}")
+            self.unit.status = ops.BlockedStatus(f"Failed to start Container Runner: {str(e)}")
+
+    def _load_env_file(self) -> Dict[str, str]:
+        """Attempt to load and validate the .env files from resources and secrets and append to the existing env_vars dict."""
+        env_file_path = None
+        env_vars = self._env_vars
+
+        # Load env vars from Juju resource
+        try:
+            # Get .env file
+            env_file_path = self.model.resources.fetch("env-file")
+            # Filter out environment variables with values set to None (see dotenv_values docs for why).
+            filtered_env_vars: Dict[str, str] = {
+                key: value
+                for key, value in dotenv_values(env_file_path).items()
+                if value is not None
+            }
+            env_vars.update(filtered_env_vars)
+            if not env_vars:
+                raise ValueError("The .env file is empty or has invalid formatting.")
+            logging.info(".env file loaded successfully.")
+        except Exception as e:
+            logging.info(f"Failed to load env vars resource: {e}")
+        try:
+            secret_env_vars = self._get_secret_content(self.config.get("env-vars"))
+            if secret_env_vars:
+                env_vars.update(secret_env_vars)
+                logging.debug("Secret env-vars successfully loaded")
+        except Exception as e:
+            logging.info(f"Failed to load secret env vars: {e}")
+
+        return env_vars
 
     def _on_start(self, _):
-        """Start Ratings."""
-        self._ratings.start()
-        self.unit.status = ActiveStatus()
+        """Start Container Runner."""
+        if self._waiting_for_database_relation:
+            self.unit.status = ops.WaitingStatus("Waiting for database relation")
+            return
+
+        if not self._container_runner.running:
+            self._container_runner.run()
+
+        try:
+            logger.info("Updating and resuming snap service for Container Runner.")
+            self._container_runner.configure(self._env_vars)
+            # self.unit.open_port(protocol="tcp", port=PORT)
+            self.unit.status = ops.ActiveStatus()
+            logger.info("Container Runner started successfully.")
+        except Exception as e:
+            logger.error(f"Failed to start Container Runner: {str(e)}")
+            self.unit.status = ops.BlockedStatus(f"Failed to start Container Runner: {str(e)}")
 
     def _on_upgrade_charm(self, _):
         """Ensure the snap is refreshed (in channel) if there are new revisions."""
-        self.unit.status = ops.MaintenanceStatus("refreshing Ratings")
-        try:
-            self._ratings.refresh()
-        except snap.SnapError as e:
-            self.unit.status = ops.BlockedStatus(str(e))
+        self.unit.status = ops.MaintenanceStatus("upgrade hook called")
 
     def _on_install(self, _):
         """Install prerequisites for the application."""
-        self.unit.status = MaintenanceStatus("Installing Ratings")
+        self.unit.status = MaintenanceStatus("Installing Container Runner")
 
         try:
-            self._ratings.install()
+            self._container_runner.install()
             self.unit.status = MaintenanceStatus("Installation complete, waiting for database.")
-        except snap.SnapError as e:
-            logger.error(f"Failed to install Ratings via snap: {e}")
+        except Exception as e:
+            logger.error(f"Failed to install Container Runner via snap: {e}")
             self.unit.status = ops.BlockedStatus(str(e))
+
+    def _get_secret_content(self, secret_id) -> Dict[str, str]:
+        """Get the content of a Juju secret."""
+        try:
+            secret = self.model.get_secret(id=secret_id)
+            env_var_buffer = secret.get_content(refresh=True)["env-vars"]
+            # Filter out environment variables with values set to None (see dotenv_values docs for why).
+            filtered_secret_env_vars: Dict[str, str] = {
+                key: value
+                for key, value in dotenv_values(stream=StringIO(env_var_buffer)).items()
+                if value is not None
+            }
+            return filtered_secret_env_vars
+        except ops.SecretNotFoundError:
+            logger.error(f"secret {secret_id!r} not found.")
+            raise
 
     def _on_database_created(self, _: DatabaseCreatedEvent):
         """Handle the database creation event."""
@@ -76,39 +196,32 @@ class RatingsCharm(ops.CharmBase):
         self._update_service_config()
 
     def _update_service_config(self):
-        """Update the service config and restart Ratings."""
-        logger.info("Updating config and resterting Ratings.")
-
+        """Update the service config and restart Container Runner."""
+        # TODO: if a db is related, and the charm crashed, is the database_created event fired off again?
+        # TODO: Move this to a separate field and not shared with env_vars so we can wipe env_vars each time and preserve the connection string.
+        logger.info("Updating config and resterting Container Runner.")
         if self.model.get_relation("database") is None:
             logger.warning("No database relation found. Waiting.")
             self.unit.status = ops.WaitingStatus("Waiting for database relation")
             return
 
-        self.unit.status = ops.MaintenanceStatus("Attempting to update Ratings config.")
+        self.unit.status = ops.MaintenanceStatus("Attempting to update Container Runner config.")
         # Get connection string from Juju relation to db
         connection_string = self._db_connection_string()
 
-        # Generate jwt secret
-        jwt_secret = self._jwt_secret()
+        self._env_vars.update({"APP_POSTGRES_URI": connection_string})
+        self._waiting_for_database_relation = False
 
         # Ensure squid proxy
         self._set_proxy()
-
         try:
-            logger.info("Updating and resuming snap service for Ratings.")
-            self._ratings.configure(
-                jwt_secret=jwt_secret,
-                postgres_uri=connection_string,
-                migration_postgres_uri=connection_string,
-                log_level=self.config["log-level"],
-                env=self.config["env"],
-            )
-            self.unit.open_port(protocol="tcp", port=PORT)
-            self.unit.status = ops.ActiveStatus()
-            logger.info("Ratings service started successfully.")
+            self._container_runner.configure(self._env_vars)
         except Exception as e:
-            logger.error(f"Failed to start Ratings service: {str(e)}")
-            self.unit.status = ops.BlockedStatus(f"Failed to start Ratings service: {str(e)}")
+            self.unit.status = ops.BlockedStatus(
+                f"Failed to start configure container runner: {str(e)}"
+            )
+        self.unit.open_port(protocol="tcp", port=_cast_config_to_int(self.config.get("host-port")))
+        self.unit.status = ActiveStatus()
 
     def _db_connection_string(self) -> str:
         """Report database connection string using info from relation databag."""
@@ -119,41 +232,19 @@ class RatingsCharm(ops.CharmBase):
         if not relation:
             logger.warning("Database relation not found. Returning empty connection string.")
             return ""
-
+        # TODO: Assumes this is a psql db, should be more generic in the future.
         data = self._database.fetch_relation_data()[relation.id]
         username = data.get("username")
         password = data.get("password")
         endpoints = data.get("endpoints")
 
         if username and password and endpoints:
-            connection_string = f"postgres://{username}:{password}@{endpoints}/ratings"
+            # FIXME: We construct the db connection aware of ratings, pass on the parts in future
+            connection_string = f"postgresql://{username}:{password}@{endpoints}/ratings"
             logger.info(f"Generated database connection string with endpoints: {endpoints}.")
             return connection_string
         else:
             logger.warning("Missing database relation data. Cannot generate connection string.")
-            return ""
-
-    def _jwt_secret(self) -> str:
-        """Report the apps JWT secret; create one if it doesn't exist."""
-        # If the peer relation is not ready, just return an empty string
-        relation = self.model.get_relation("ratings-peers")
-        if not relation:
-            return ""
-
-        # If the secret already exists, grab its content and return it
-        secret_id = relation.data[self.app].get("jwt-secret-id", None)
-        if secret_id:
-            secret = self.model.get_secret(id=secret_id)
-            return secret.peek_content().get("jwt-secret")
-
-        if self.unit.is_leader():
-            logger.info("Creating a new JWT secret")
-            content = {"jwt-secret": secrets.token_hex(24)}
-            secret = self.app.add_secret(content)
-            # Store the secret id in the peer relation for other units if required
-            relation.data[self.app]["jwt-secret-id"] = secret.id
-            return content["jwt-secret"]
-        else:
             return ""
 
     def _set_proxy(self):
@@ -165,4 +256,4 @@ class RatingsCharm(ops.CharmBase):
 
 
 if __name__ == "__main__":  # pragma: nocover
-    ops.main(RatingsCharm)
+    ops.main(ContainerRunnerCharm)

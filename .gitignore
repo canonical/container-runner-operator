@@ -13,5 +13,6 @@ build/
 *.charm
 .tox/
 .coverage
+.pyrightconfig.json
 __pycache__/
 *.py[cod]

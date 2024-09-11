@@ -1,10 +1,25 @@
 options:
-  env:
-    type: string
-    default: "dev"
-    description: "Application environment."
-  log-level:
-    type: string
-    default: "info"
+  container-port:
+    type: int 
+    default: 80
     description: |
-        Available log level settings are "info", "warning", "error" and "debug".
+        The internal port on which the application inside the container listens for web traffic.
+  host-port:
+    type: int
+    default: 80
+    description: |
+        The external port on the host machine that maps to the container's internal port, allowing access to the application from outside the container.
+  container-image-uri:
+    type: string
+    default: nginxdemos/hello
+    description: |
+        Image or image URI that will be run by the container runner. 
+  database-expected:
+    type: boolean
+    default: false
+    description: |
+        Flag that determines if a database relation should be waited for before starting the container runner.
+  env-vars:
+    type: secret
+    description: | 
+        Expects the string content of a .env file, with each variable on a new line.

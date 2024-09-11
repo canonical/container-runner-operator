@@ -1,49 +1,35 @@
 import unittest
-from pathlib import Path
-from unittest import mock
 
-from ratings import Ratings
+from container_runner import ContainerRunner
 
 
-class TestRatings(unittest.TestCase):
+class TestContainerRunner(unittest.TestCase):
+    """Functional tests designed to test the ContainerRunner Class isolated from the Charm lifecycle hooks."""
+
     def setUp(self):
-        self.ratings = Ratings()
-        if not self.ratings.installed:
-            self.ratings.install()
-
-    def test_install(self):
-        self.assertTrue(Path("/snap/ratings/current/bin/ratings").exists())
-        self.assertTrue(self.ratings.installed)
-
-    def test_start(self):
-        self.ratings.start()
-        self.assertTrue(self.ratings.running)
-        self.ratings.remove()
-
-    def test_stop(self):
-        self.ratings.stop()
-        self.assertFalse(self.ratings.running)
-        self.ratings.remove()
-
-    def test_remove(self):
-        self.ratings.remove()
-        self.assertFalse(self.ratings.installed)
-
-    @mock.patch("charms.operator_libs_linux.v1.snap.Snap.restart")
-    def test_configure_ratings(self, _restart):
-        self.ratings.configure(
-            jwt_secret="foo",
-            log_level="bar",
-            postgres_uri="foobar",
-            migration_postgres_uri="barfoo",
-            env="testenv",
+        self.container_runner = ContainerRunner(
+            "ghcr.io/ubuntu/app-center-ratings:sha-7f05d08", 8080, 8080
         )
+        if not self.container_runner.installed:
+            self.container_runner.install()
 
-        # Test have been updated
-        self.assertEqual(self.ratings._snap.get("app-jwt-secret"), "foo")
-        self.assertEqual(self.ratings._snap.get("app-log-level"), "bar")
-        self.assertEqual(self.ratings._snap.get("app-migration-postgres-uri"), "barfoo")
-        self.assertEqual(self.ratings._snap.get("app-postgres-uri"), "foobar")
-        self.assertEqual(self.ratings._snap.get("app-env"), "testenv")
+    def test_rock_lifecycle(self):
+        self.assertTrue(self.container_runner.installed)
 
-        _restart.assert_called_once()
+        self.container_runner.run()
+        self.assertTrue(self.container_runner.running)
+
+        env_vars = {"Foo": "foo", "Bar": "bar"}
+        self.container_runner.configure(env_vars)
+
+        # Check if the container is running post configuration
+        self.assertTrue(self.container_runner.running)
+
+        # Inspect the container's environment variables
+        env_output = self.container_runner._docker._run_command(
+            "inspect",
+            ["-f", "{{json .Config.Env}}", self.container_runner._container_name],
+        )
+        env_vars_in_container = eval(env_output)
+        for key, value in env_vars.items():
+            self.assertIn(f"{key}={value}", env_vars_in_container)
