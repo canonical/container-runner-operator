@@ -3,11 +3,17 @@
 import logging
 import subprocess
 import time
+import os
 from typing import Iterable, Optional
 
 from charms.operator_libs_linux.v1 import snap
 
+# Configure logging level based on environment variable or default to INFO
+log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
+
+# Set up the logger
 logger = logging.getLogger(__name__)
+logger.setLevel(log_level)
 
 
 class _Docker:
@@ -61,7 +67,7 @@ class _Docker:
         """Pull a Docker image."""
         return self._run_command("pull", [image])
 
-    def run_watchtower(self, container_name: str, monitored_container: str):
+    def run_watchtower(self):
         """Run Watchtower to monitor a container."""
         docker_args = [
             "-d",
@@ -83,14 +89,46 @@ class _Docker:
         container_port: int,
         env_vars: Optional[dict] = None,
     ):
-        """Run a container with Docker, optionally passing environment variables."""
-        # TODO: when the charm is powercycled, this is called again but docker has spun it up again.
+        """Run a Docker container, optionally passing environment variables.
+
+        This function handles cases where the container already exists by either restarting
+        it or removing it before running a new instance.
+        """
+        # Check status of container
+        try:
+            container_status = self._run_command(
+                "inspect", ["-f", "{{.State.Status}}", container_name]
+            )
+            if "running" in container_status:
+                logger.debug(f"Container {container_name} is already running.")
+                return
+            if "exited" in container_status:
+                logger.debug(f"Container {container_name} has exited, restarting now.")
+                self._run_command("start", [container_name])
+                return
+            else:
+                logger.debug(
+                    f"Container {container_name} exists in state {container_status}. Removing it."
+                )
+                self.remove_container(container_name)
+        except subprocess.CalledProcessError as e:
+            # Container does not exist, so we can continue to create it
+            if "No such object" in e.stderr:
+                logger.debug(
+                    f"Container {container_name} does not exist. Proceeding to create it."
+                )
+            else:
+                logger.error(f"Unknown error returned from docker inspect call: {e}")
+                raise e
+
+        # Prepare Docker run arguments
         docker_args = ["-d", "--name", container_name, "-p", f"{host_port}:{container_port}"]
         if env_vars:
             for key, value in env_vars.items():
                 docker_args.extend(["-e", f"{key}={value}"])
 
         docker_args.append(image)
+
         return self._run_command("run", docker_args)
 
     def stop_container(self, container_name: str):
@@ -147,7 +185,7 @@ class ContainerRunner:
 
         # Run Watchtower to monitor the managed container
         try:
-            self._docker.run_watchtower(self._watchtower_container, self._container_name)
+            self._docker.run_watchtower()
             logger.info("Successfully started Watchtower to monitor: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to start Watchtower: %s", e)
@@ -215,19 +253,40 @@ class ContainerRunner:
         return False
 
     @property
-    def running(self):
-        """Check if both containers are running."""
+    def managed_container_running(self) -> bool:
+        """Check if the managed container is currently running."""
         try:
             # Inspect the managed container to check if it's running
             managed_container_inspect = self._docker._run_command(
                 "inspect", ["-f", "{{.State.Running}}", self._container_name]
             )
+            if "true" in managed_container_inspect:
+                return True
+        except Exception as e:
+            logger.info(
+                "Failed to inspect container state in managed container running check: %s", e
+            )
+
+        return False
+
+    @property
+    def watchtower_running(self) -> bool:
+        """Check if the watchtower container is currently running."""
+        try:
+            # Inspect the watchtower container to check if it's running
             watchtower_container_inspect = self._docker._run_command(
                 "inspect", ["-f", "{{.State.Running}}", "watchtower"]
             )
-            if "true" in managed_container_inspect and "true" in watchtower_container_inspect:
+            if "true" in watchtower_container_inspect:
                 return True
         except Exception as e:
-            logger.info("Failed to inspect container state: %s", e)
+            logger.info(
+                "Failed to inspect container state in watchtower container running check: %s", e
+            )
 
         return False
+
+    @property
+    def running(self) -> bool:
+        """Check if both containers are running."""
+        return self.watchtower_running and self.managed_container_running

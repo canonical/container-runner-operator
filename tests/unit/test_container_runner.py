@@ -184,9 +184,9 @@ class TestDocker(unittest.TestCase):
                 # Test execution
                 if case.get("expected_exception", None):
                     with self.assertRaises(case["expected_exception"]):
-                        self.docker.run_watchtower("watchtower", "app_container")
+                        self.docker.run_watchtower()
                 else:
-                    self.docker.run_watchtower("watchtower", "app_container")
+                    self.docker.run_watchtower()
 
                 # Assertions
                 _mock_run_command.assert_called_once_with("run", expected_args)
@@ -195,37 +195,73 @@ class TestDocker(unittest.TestCase):
                 _mock_run_command.reset_mock()
 
     @mock.patch.object(_Docker, "_run_command")
-    def test_run_container(self, _mock_run_command):
+    def test_run_container(self, _mock_run_command):  # noqa  W291
         # Common variables
         image = "ubuntu"
         container_name = "test_container"
         host_port = 8080
         container_port = 80
 
+        def _mock_run_command_side_effect(command, _, test_case):
+            if command == "inspect":
+                state = test_case.get("container_state", "running")
+                if state == "No such object" or state == "Error":
+                    # Simulate "No such container" error for inspect
+                    raise subprocess.CalledProcessError(
+                        returncode=1, cmd=str(command), stderr=str(state)
+                    )
+                return state
+            elif command == "run":
+                # Return success or raise error based on the test case for "run"
+                if test_case.get("run_command_success", True):
+                    return "container started successfully"
+                raise subprocess.CalledProcessError(
+                    returncode=1, cmd=command, stderr="Failed to run container"
+                )
+            elif command == "start":
+                return "started container"
+            elif command == "rm":
+                return "removed container"
+            else:
+                # Raise error for unexpected commands
+                raise ValueError("Unexpected command")
+
         test_cases = [
             {
                 "name": "successful container run without env vars",
-            },
-            {
-                "name": "container run failure without env vars",
-                "run_command_side_effect": subprocess.CalledProcessError(1, "docker run"),
-                "expected_exception": subprocess.CalledProcessError,
+                "container_state": "No such object",
+                "run_call_expected": True,
             },
             {
                 "name": "successful container run with env vars",
+                "container_state": "No such object",
                 "env_vars": {"ENV_VAR": "value"},
+                "run_call_expected": True,
             },
             {
-                "name": "container run failure with env vars",
-                "env_vars": {"ENV_VAR": "value"},
-                "run_command_side_effect": subprocess.CalledProcessError(1, "docker run"),
-                "expected_exception": subprocess.CalledProcessError,
+                "name": "skip calling run if container is already running",
+                "container_state": "running",
+            },
+            {
+                "name": "if a container exited, start it again",
+                "container_state": "exited",
+            },
+            {
+                "name": "if a container is in an unknown status, remove and restart",
+                "container_state": "unknown",
+                "run_call_expected": True,
+            },
+            {
+                "name": "Error when unknown error is thrown by inspect command",
+                "container_state": "Error",
+                "expected_exception": True,
             },
         ]
         for case in test_cases:
             with self.subTest(case=case["name"]):
                 # Setup
-                expected_args = [
+                inspect_expected_args = ["-f", "{{.State.Status}}", container_name]
+                run_expected_args = [
                     "-d",
                     "--name",
                     container_name,
@@ -234,13 +270,16 @@ class TestDocker(unittest.TestCase):
                 ]
                 if "env_vars" in case:
                     for key, value in case["env_vars"].items():
-                        expected_args.extend(["-e", f"{key}={value}"])
-                expected_args.append(image)
-                _mock_run_command.side_effect = case.get("run_command_side_effect")
+                        run_expected_args.extend(["-e", f"{key}={value}"])
+                run_expected_args.append(image)
+                _mock_run_command.side_effect = (
+                    lambda command, args: _mock_run_command_side_effect(command, args, case)
+                )
 
                 # Test execution
-                if case.get("expected_exception"):
-                    with self.assertRaises(case["expected_exception"]):
+                # Error expected
+                if case.get("expected_exception", False):
+                    with self.assertRaises(subprocess.CalledProcessError):
                         self.docker.run_container(
                             image,
                             container_name,
@@ -248,6 +287,7 @@ class TestDocker(unittest.TestCase):
                             container_port,
                             case.get("env_vars"),
                         )
+                # No error expected
                 else:
                     self.docker.run_container(
                         image,
@@ -258,7 +298,13 @@ class TestDocker(unittest.TestCase):
                     )
 
                 # Assertions
-                _mock_run_command.assert_called_once_with("run", expected_args)
+                _mock_run_command.assert_any_call("inspect", inspect_expected_args)
+                if case.get("run_call_expected", False):
+                    _mock_run_command.assert_any_call("run", run_expected_args)
+                if case.get("container_state") == "exited":
+                    _mock_run_command.assert_any_call("start", [container_name])
+                if case.get("container_state") == "unknown":
+                    _mock_run_command.assert_any_call("rm", [container_name])
 
                 # Reset the mock for the next test case
                 _mock_run_command.reset_mock()
@@ -536,23 +582,23 @@ class TestContainerRunner(unittest.TestCase):
                 "run_command_side_effect": ["true", "true"],
                 "expected_running": True,
                 "expected_calls": [
-                    mock.call("inspect", inspect_format + [managed_container]),
                     mock.call("inspect", inspect_format + [watchtower_container]),
+                    mock.call("inspect", inspect_format + [managed_container]),
                 ],
             },
             {
                 "name": "running failure inspection",
                 "run_command_side_effect": Exception("Failed to inspect container"),
                 "expected_calls": [
-                    mock.call("inspect", inspect_format + [managed_container]),
+                    mock.call("inspect", inspect_format + [watchtower_container]),
                 ],
             },
             {
                 "name": "running partial failure",
                 "run_command_side_effect": ["true", "false"],
                 "expected_calls": [
-                    mock.call("inspect", inspect_format + [managed_container]),
                     mock.call("inspect", inspect_format + [watchtower_container]),
+                    mock.call("inspect", inspect_format + [managed_container]),
                 ],
             },
         ]
