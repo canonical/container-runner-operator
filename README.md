@@ -1,6 +1,7 @@
 # Container Runner charm
 
 [![Push (main)](https://github.com/canonical/app-center-ratings-operator/actions/workflows/push.yaml/badge.svg)](https://github.com/canonical/app-center-ratings-operator/actions/workflows/push.yaml)
+[![codecov](https://codecov.io/gh/canonical/container-runner-operator/graph/badge.svg?token=YsqEQHNIm7)](https://codecov.io/gh/canonical/container-runner-operator)
 
 The Container Runner charm aims to provide a configurable Charm for deploying simple backend web service and database setups onto Juju infrastructure. The aim is make it easier to deploy simple web applications without the need to create dedicated Charms for each service.
 
