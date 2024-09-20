@@ -6,8 +6,6 @@ import time
 import os
 from typing import Iterable, Optional
 
-from charms.operator_libs_linux.v1 import snap
-
 # Configure logging level based on environment variable or default to INFO
 log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
 
@@ -19,20 +17,26 @@ logger.setLevel(log_level)
 class _Docker:
     """Private class for handling the installed Docker snap."""
 
-    @property
-    def _docker(self):
-        """Return a representation of the Docker snap."""
-        cache = snap.SnapCache()
-        return cache["docker"]
-
     def install(self):
-        # Install Docker
         try:
-            self._docker.ensure(snap.SnapState.Latest, channel="stable")
-            snap.hold_refresh()
+            # Set this env to automatically restart daemons. If not, the prompt is blocking.
+            env = os.environ.copy()
+            env["NEEDRESTART_MODE"] = "a"
+
+            # Run apt-get update
+            subprocess.run([
+                "apt-get", "update"
+            ], check=True, env=env)
+
+            # Install docker.io package
+            subprocess.run([
+                "apt-get", "install", "-y", "docker.io"
+            ], check=True, env=env)
+
             self._wait_for_docker()
-        except snap.SnapError as e:
-            logger.error("could not install docker. Reason: %s", e.message)
+
+        except subprocess.CalledProcessError as e:
+            logger.error("could not install docker. Reason: %s", e)
             logger.debug(e, exc_info=True)
             raise e
 
