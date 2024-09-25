@@ -71,6 +71,17 @@ The following configuration options are available on the Container Runner charm:
 - **Description**:  
   Expects the string content of a `.env` file, with each variable on a new line.
 
+### Setting up proxy configuration
+
+In order to pass `http_proxy` and `https_proxy` settings into the charm, and have them used by the charm and Docker daemon, set the `juju-https-proxy` and `juju-http-proxy` model configuration settings:
+
+```
+juju model-config juju-https-proxy=http://my.proxy:1234
+juju model-config juju-http-proxy=http://my.proxy:1234
+```
+
+These configuration settings are scoped to the model, not the unit. More on Juju model config can be found [here](https://juju.is/docs/juju/juju-model-config).
+
 #  How-to guides
  
 The following are a series of how-to's to guide you through managing and deploying a containerized application via the Container Runner charm.
