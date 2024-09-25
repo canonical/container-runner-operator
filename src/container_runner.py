@@ -1,5 +1,7 @@
 """Control a OCI image running via Docker on a host system. Provides a ContainerRunner class."""
 
+import json
+from pathlib import Path
 import logging
 import subprocess
 import time
@@ -13,6 +15,8 @@ log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
 logger = logging.getLogger(__name__)
 logger.setLevel(log_level)
 
+DOCKER_DAEMON_CONFIG_PATH = Path("/etc/docker/daemon.json")
+
 
 class _Docker:
     """Private class for handling the installed Docker snap."""
@@ -24,14 +28,10 @@ class _Docker:
             env["NEEDRESTART_MODE"] = "a"
 
             # Run apt-get update
-            subprocess.run([
-                "apt-get", "update"
-            ], check=True, env=env)
+            subprocess.run(["apt-get", "update"], check=True, env=env)
 
             # Install docker.io package
-            subprocess.run([
-                "apt-get", "install", "-y", "docker.io"
-            ], check=True, env=env)
+            subprocess.run(["apt-get", "install", "-y", "docker.io"], check=True, env=env)
 
             self._wait_for_docker()
 
@@ -155,6 +155,18 @@ class ContainerRunner:
         self._watchtower_container = "watchtower_container"
         self._container_port = container_port
         self._host_port = host_port
+
+    def set_docker_proxy(self, http_proxy: str, https_proxy: str):
+        """Write docker proxy settings to /etc/docker/daemon.json."""
+        proxy_config = {
+            "http-proxy": http_proxy,
+            "https-proxy": https_proxy,
+        }
+
+        daemon_config = {"proxies": proxy_config}
+
+        DOCKER_DAEMON_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DOCKER_DAEMON_CONFIG_PATH.write_text(json.dumps(daemon_config, indent=2), encoding="utf-8")
 
     def set_ports(self, container_port: int, host_port: int):
         """Set the container port and host port used when running the OCI image."""

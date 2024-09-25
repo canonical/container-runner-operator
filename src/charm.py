@@ -52,10 +52,14 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+
         container_image = _cast_config_to_string(self.config.get("container-image-uri"))
         container_port = _cast_config_to_int(self.config.get("container-port"))
         host_port = _cast_config_to_int(self.config.get("host-port"))
         self._container_runner = ContainerRunner(container_image, container_port, host_port)
+
+        # Ensure squid proxy
+        self._set_proxy()
 
         # Initialise the integration with PostgreSQL. Currently hardcoded to ratings
         # TODO: add database name as config, use that to tell if we expect a db + makes this generic
@@ -211,9 +215,10 @@ class ContainerRunnerCharm(ops.CharmBase):
 
         self._env_vars.update({"APP_POSTGRES_URI": connection_string})
         self._waiting_for_database_relation = False
+        logger.debug(
+            f"_waiting_for_database_relation updated to {self._waiting_for_database_relation}"
+        )
 
-        # Ensure squid proxy
-        self._set_proxy()
         try:
             self._container_runner.configure(self._env_vars)
         except Exception as e:
@@ -251,8 +256,13 @@ class ContainerRunnerCharm(ops.CharmBase):
         """Set Squid proxy environment variables if configured."""
         proxy_url = os.environ.get("JUJU_CHARM_HTTP_PROXY")
         if proxy_url:
+            logger.debug(f"Setting HTTP/S_PROXY to value: {proxy_url}")
             os.environ["HTTP_PROXY"] = proxy_url
             os.environ["HTTPS_PROXY"] = proxy_url
+            self._container_runner.set_docker_proxy(proxy_url, proxy_url)
+        # Debugging output
+        logger.debug(f"HTTP_PROXY is set to: {os.environ.get('HTTP_PROXY')}")
+        logger.debug(f"HTTPS_PROXY is set to: {os.environ.get('HTTPS_PROXY')}")
 
 
 if __name__ == "__main__":  # pragma: nocover
