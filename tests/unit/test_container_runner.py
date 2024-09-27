@@ -631,8 +631,8 @@ class TestContainerRunner(unittest.TestCase):
         test_cases = [
             {
                 "name": "set valid proxies",
-                "http_proxy": "http://proxy.example.com:8080",
-                "https_proxy": "https://proxy.example.com:8443",
+                "http_proxy": http_proxy,
+                "https_proxy": https_proxy,
             },
             {
                 "name": "no proxies provided",

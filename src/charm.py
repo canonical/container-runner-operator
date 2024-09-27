@@ -254,12 +254,14 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def _set_proxy(self):
         """Set Squid proxy environment variables if configured."""
-        proxy_url = os.environ.get("JUJU_CHARM_HTTP_PROXY")
-        if proxy_url:
-            logger.debug(f"Setting HTTP/S_PROXY to value: {proxy_url}")
-            os.environ["HTTP_PROXY"] = proxy_url
-            os.environ["HTTPS_PROXY"] = proxy_url
-            self._container_runner.set_docker_proxy(proxy_url, proxy_url)
+        http_proxy_url = os.environ.get("JUJU_CHARM_HTTP_PROXY")
+        https_proxy_url = os.environ.get("JUJU_CHARM_HTTPS_PROXY")
+        if http_proxy_url and https_proxy_url:
+            logger.debug(f"Setting HTTP_PROXY to value: {http_proxy_url}")
+            logger.debug(f"Setting HTTPS_PROXY to value: {https_proxy_url}")
+            os.environ["HTTP_PROXY"] = http_proxy_url
+            os.environ["HTTPS_PROXY"] = https_proxy_url
+            self._container_runner.set_docker_proxy(http_proxy_url, https_proxy_url)
         # Debugging output
         logger.debug(f"HTTP_PROXY is set to: {os.environ.get('HTTP_PROXY')}")
         logger.debug(f"HTTPS_PROXY is set to: {os.environ.get('HTTPS_PROXY')}")
