@@ -1,4 +1,5 @@
 import unittest
+import json
 from container_runner import _Docker, ContainerRunner
 from unittest import mock
 import subprocess
@@ -8,44 +9,40 @@ class TestDocker(unittest.TestCase):
     def setUp(self):
         self.docker = _Docker()
 
-    @mock.patch("charms.operator_libs_linux.v1.snap.hold_refresh")
-    @mock.patch("charms.operator_libs_linux.v1.snap.SnapCache")
-    def test_install_docker(self, _mock_snap_cache, _mock_hold_refresh):
+    @mock.patch("subprocess.run")
+    def test_install_docker(self, mock_subprocess_run):
         test_cases = [
             {
                 "name": "successful docker installation",
             },
             {
                 "name": "failed docker installation",
-                "expected_exception": "Snap installation failed",
+                "expected_exception": subprocess.CalledProcessError(1, "apt-get install"),
             },
         ]
         for case in test_cases:
             with self.subTest(case=case["name"]):
                 # Setup
-                mock_docker = mock.Mock()
-                if case.get("expected_exception", None):
-                    mock_docker.ensure.side_effect = Exception(case["expected_exception"])
-                _mock_snap_cache.return_value = {"docker": mock_docker}
+                mock_subprocess_run.reset_mock()
+                if "expected_exception" in case:
+                    mock_subprocess_run.side_effect = case["expected_exception"]
+                else:
+                    mock_subprocess_run.side_effect = None  # No exception for successful case
 
                 # Run test
-                if case.get("expected_exception", None):
-                    with self.assertRaises(Exception) as e:
+                if "expected_exception" in case:
+                    with self.assertRaises(subprocess.CalledProcessError) as e:
                         self.docker.install()
-                    self.assertEqual(str(e.exception), case["expected_exception"])
+                    self.assertEqual(e.exception, case["expected_exception"])
                 else:
                     self.docker.install()
-                mock_docker.ensure.assert_called_once_with(mock.ANY, channel="stable")
-
-                # Assertions
-                if case.get("expected_exception", None):
-                    _mock_hold_refresh.assert_not_called()
-                else:
-                    _mock_hold_refresh.assert_called_once()
-
-                # Reset the mocks for the next test case
-                _mock_hold_refresh.reset_mock()
-                mock_docker.reset_mock()
+                    # Check that subprocess.run was called with the correct commands
+                    mock_subprocess_run.assert_any_call(
+                        ["apt-get", "update"], check=True, env=mock.ANY
+                    )
+                    mock_subprocess_run.assert_any_call(
+                        ["apt-get", "install", "-y", "docker.io"], check=True, env=mock.ANY
+                    )
 
     @mock.patch("time.sleep", return_value=None)
     @mock.patch("subprocess.check_output")
@@ -618,3 +615,48 @@ class TestContainerRunner(unittest.TestCase):
 
                 # Reset mock for the next test case
                 _mock_run_command.reset_mock()
+
+    @mock.patch("pathlib.Path.write_text")
+    @mock.patch("pathlib.Path.mkdir")
+    def test_set_docker_proxy(self, mock_mkdir, mock_write_text):
+        http_proxy = "http://proxy.example.com:8080"
+        https_proxy = "https://proxy.example.com:8443"
+        expected_config = {
+            "proxies": {
+                "http-proxy": http_proxy,
+                "https-proxy": https_proxy,
+            }
+        }
+
+        test_cases = [
+            {
+                "name": "set valid proxies",
+                "http_proxy": "http://proxy.example.com:8080",
+                "https_proxy": "https://proxy.example.com:8443",
+            },
+            {
+                "name": "no proxies provided",
+            },
+        ]
+
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                # Use default values if not specified in the test case
+                http_proxy = case.get("http_proxy", "")
+                https_proxy = case.get("https_proxy", "")
+
+                # Reset mocks for each test case
+                mock_mkdir.reset_mock()
+                mock_write_text.reset_mock()
+
+                # Run the method
+                if http_proxy == "":
+                    with self.assertRaises(ValueError):
+                        self.container_runner.set_docker_proxy(http_proxy, https_proxy)
+                else:
+                    self.container_runner.set_docker_proxy(http_proxy, https_proxy)
+                    # Assertions
+                    mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+                    mock_write_text.assert_called_once_with(
+                        json.dumps(expected_config, indent=2), encoding="utf-8"
+                    )

@@ -172,10 +172,9 @@ class TestCharm(unittest.TestCase):
 
         _update.assert_called_once()
 
-    @patch("charm.ContainerRunnerCharm._set_proxy")
     @patch("charm.ContainerRunnerCharm._db_connection_string", return_value="bar")
     @mock.patch("charm.ContainerRunner.configure")
-    def test_update_service_config(self, _conf, _db_string, _proxy):
+    def test_update_service_config(self, _conf, _db_string):
         # Set env and log-level
         self.harness.update_config({"host-port": 1234, "container-port": 4321})
 
@@ -192,9 +191,6 @@ class TestCharm(unittest.TestCase):
         # Connection string retrieved
         _db_string.assert_called_once()
 
-        # Proxy set
-        _proxy.assert_called_once()
-
         # Configure is called with the correct values
         _conf.assert_called_with({"APP_POSTGRES_URI": "bar"})
 
@@ -206,7 +202,8 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
 
     @mock.patch.dict(os.environ, {"JUJU_CHARM_HTTP_PROXY": "http://example.com:3128"}, clear=True)
-    def test_set_proxy(self):
+    @mock.patch("charm.ContainerRunner.set_docker_proxy")
+    def test_set_proxy(self, _set):
         # Call the method
         self.harness.charm._set_proxy()
 
@@ -220,3 +217,4 @@ class TestCharm(unittest.TestCase):
             # Assert that the environment variables were not set
             self.assertNotIn("HTTP_PROXY", os.environ)
             self.assertNotIn("HTTPS_PROXY", os.environ)
+            _set.assert_called_with('http://example.com:3128', 'http://example.com:3128')
