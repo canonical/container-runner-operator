@@ -217,4 +217,4 @@ class TestCharm(unittest.TestCase):
             # Assert that the environment variables were not set
             self.assertNotIn("HTTP_PROXY", os.environ)
             self.assertNotIn("HTTPS_PROXY", os.environ)
-            _set.assert_called_with('http://example.com:3128', 'http://example.com:3128')
+            _set.assert_called_with("http://example.com:3128", "http://example.com:3128")
