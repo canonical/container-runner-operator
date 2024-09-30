@@ -7,7 +7,6 @@
 Charm for deploying and managing OCI images and their database relations.
 """
 import logging
-import os
 from io import StringIO
 import ops
 
@@ -57,9 +56,6 @@ class ContainerRunnerCharm(ops.CharmBase):
         container_port = _cast_config_to_int(self.config.get("container-port"))
         host_port = _cast_config_to_int(self.config.get("host-port"))
         self._container_runner = ContainerRunner(container_image, container_port, host_port)
-
-        # Ensure squid proxy
-        self._set_proxy()
 
         # Initialise the integration with PostgreSQL. Currently hardcoded to ratings
         # TODO: add database name as config, use that to tell if we expect a db + makes this generic
@@ -251,27 +247,6 @@ class ContainerRunnerCharm(ops.CharmBase):
         else:
             logger.warning("Missing database relation data. Cannot generate connection string.")
             return ""
-
-    def _set_proxy(self):
-        """Set Squid proxy environment variables if configured."""
-        http_proxy_env = os.environ.get("JUJU_CHARM_HTTP_PROXY")
-        https_proxy_env = os.environ.get("JUJU_CHARM_HTTPS_PROXY")
-
-        if http_proxy_env or https_proxy_env:
-            logger.debug(f"Setting HTTP_PROXY to value: {http_proxy_env}")
-            logger.debug(f"Setting HTTPS_PROXY to value: {https_proxy_env}")
-            http_proxy_str = http_proxy_env if http_proxy_env else ""
-            https_proxy_str = https_proxy_env if https_proxy_env else ""
-            # Set proxy env vars
-            if http_proxy_env:
-                os.environ["HTTP_PROXY"] = http_proxy_str
-            if https_proxy_env:
-                os.environ["HTTPS_PROXY"] = https_proxy_str
-            # Set docker proxy settings
-            self._container_runner.set_docker_proxy(http_proxy_str, https_proxy_str)
-        # Debugging output
-        logger.debug(f"HTTP_PROXY is set to: {os.environ.get('HTTP_PROXY')}")
-        logger.debug(f"HTTPS_PROXY is set to: {os.environ.get('HTTPS_PROXY')}")
 
 
 if __name__ == "__main__":  # pragma: nocover

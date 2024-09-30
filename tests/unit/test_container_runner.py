@@ -1,6 +1,7 @@
 import unittest
+import os
 import json
-from container_runner import _Docker, ContainerRunner
+from container_runner import _Docker, ContainerRunner, _try_set_proxy_settings
 from unittest import mock
 import subprocess
 
@@ -616,59 +617,70 @@ class TestContainerRunner(unittest.TestCase):
                 # Reset mock for the next test case
                 _mock_run_command.reset_mock()
 
-    @mock.patch("pathlib.Path.write_text")
-    @mock.patch("pathlib.Path.mkdir")
-    def test_set_docker_proxy(self, mock_mkdir, mock_write_text):
-        http_proxy = "http://proxy.example.com:8080"
-        https_proxy = "https://proxy.example.com:8443"
 
-        test_cases = [
-            {
-                "name": "set both proxies",
-                "http_proxy": http_proxy,
-                "https_proxy": https_proxy,
-            },
-            {
-                "name": "set http proxy",
-                "http_proxy": http_proxy,
-            },
-            {
-                "name": "set https proxy",
-                "https_proxy": https_proxy,
-            },
-            {
-                "name": "no proxies provided",
-            },
-        ]
+@mock.patch("pathlib.Path.write_text")
+@mock.patch("pathlib.Path.mkdir")
+def test_try_set_proxy_settings(self, mock_mkdir, mock_write_text):
+    http_proxy = "http://proxy.example.com:8080"
+    https_proxy = "https://proxy.example.com:8443"
 
-        for case in test_cases:
-            with self.subTest(case=case["name"]):
-                # Use default values if not specified in the test case
-                http_proxy = case.get("http_proxy", "")
-                https_proxy = case.get("https_proxy", "")
+    test_cases = [
+        {
+            "name": "set both proxies",
+            "http_proxy": http_proxy,
+            "https_proxy": https_proxy,
+        },
+        {
+            "name": "set http proxy",
+            "http_proxy": http_proxy,
+        },
+        {
+            "name": "set https proxy",
+            "https_proxy": https_proxy,
+        },
+        {
+            "name": "no proxies provided",
+        },
+    ]
 
-                # Generate the expected configuration based on the proxies provided
-                proxy_config = {}
-                if http_proxy:
-                    proxy_config["http-proxy"] = http_proxy
-                if https_proxy:
-                    proxy_config["https-proxy"] = https_proxy
-                expected_config = {}
-                if proxy_config:
-                    expected_config["proxies"] = proxy_config
+    for case in test_cases:
+        with self.subTest(case=case["name"]):
+            # Use default values if not specified in the test case
+            http_proxy = case.get("http_proxy")
+            https_proxy = case.get("https_proxy")
 
-                # Reset mocks for each test case
-                mock_mkdir.reset_mock()
-                mock_write_text.reset_mock()
+            # Generate the expected configuration based on the proxies provided
+            proxy_config = {}
+            if http_proxy:
+                proxy_config["http-proxy"] = http_proxy
+            if https_proxy:
+                proxy_config["https-proxy"] = https_proxy
+            expected_config = {}
+            if proxy_config:
+                expected_config["proxies"] = proxy_config
 
-                # Run the method
-                if http_proxy == "" and https_proxy == "":
-                    with self.assertRaises(ValueError):
-                        self.container_runner.set_docker_proxy(http_proxy, https_proxy)
-                else:
-                    self.container_runner.set_docker_proxy(http_proxy, https_proxy)
-                    # Assertions
-                    mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
-                    mock_write_text.assert_called_once_with(
-                        json.dumps(expected_config, indent=2), encoding="utf-8"
-                    )
+            # Mock the environment variables
+            env_vars = {}
+            if http_proxy:
+                env_vars["JUJU_CHARM_HTTP_PROXY"] = http_proxy
+            if https_proxy:
+                env_vars["JUJU_CHARM_HTTPS_PROXY"] = https_proxy
+
+            # Reset mocks for each test case
+            mock_mkdir.reset_mock()
+            mock_write_text.reset_mock()
+
+            # Run the test case
+            with mock.patch.dict(os.environ, env_vars, clear=True):
+
+                # Call the method
+                _try_set_proxy_settings()
+                # Run assertions
+                self.assertEqual(os.environ.get("HTTP_PROXY"), case.get("http_proxy"))
+                self.assertEqual(os.environ.get("HTTPS_PROXY"), case.get("https_proxy"))
+
+                # Assertions
+                mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+                mock_write_text.assert_called_once_with(
+                    json.dumps(expected_config, indent=2), encoding="utf-8"
+                )

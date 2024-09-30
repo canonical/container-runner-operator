@@ -1,4 +1,3 @@
-import os
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -200,53 +199,3 @@ class TestCharm(unittest.TestCase):
 
         # Check status is active
         self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
-
-    @mock.patch("charm.ContainerRunner.set_docker_proxy")
-    def test_set_proxy(self, mock_set_docker_proxy):
-        test_cases = [
-            {
-                "name": "both proxies set",
-                "http_proxy": "http://example.com:3128",
-                "https_proxy": "https://example.com:8443",
-            },
-            {
-                "name": "only http proxy set",
-                "http_proxy": "http://example.com:3128",
-            },
-            {
-                "name": "only https proxy set",
-                "https_proxy": "https://example.com:8443",
-            },
-            {
-                "name": "no proxies set",
-                "should_call_set_proxy": False,
-            },
-        ]
-
-        for case in test_cases:
-            with self.subTest(case=case["name"]):
-                # Setup test cases
-                http_proxy = case.get("http_proxy", "")
-                https_proxy = case.get("https_proxy", "")
-                should_call_set_proxy = case.get("should_call_set_proxy", True)
-
-                # Mock the environment variables
-                env_vars = {}
-                if http_proxy:
-                    env_vars["JUJU_CHARM_HTTP_PROXY"] = http_proxy
-                if https_proxy:
-                    env_vars["JUJU_CHARM_HTTPS_PROXY"] = https_proxy
-
-                # Run the test case
-                with mock.patch.dict(os.environ, env_vars, clear=True):
-                    mock_set_docker_proxy.reset_mock()
-
-                    # Call the method
-                    self.harness.charm._set_proxy()
-                    # Run assertions
-                    self.assertEqual(os.environ.get("HTTP_PROXY"), case.get("http_proxy"))
-                    self.assertEqual(os.environ.get("HTTPS_PROXY"), case.get("https_proxy"))
-                    if should_call_set_proxy:
-                        mock_set_docker_proxy.assert_called_once_with(http_proxy, https_proxy)
-                    else:
-                        mock_set_docker_proxy.assert_not_called()
