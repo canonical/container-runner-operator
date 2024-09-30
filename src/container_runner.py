@@ -158,14 +158,15 @@ class ContainerRunner:
 
     def set_docker_proxy(self, http_proxy: str, https_proxy: str):
         """Write docker proxy settings to /etc/docker/daemon.json."""
-        if http_proxy == "":
-            raise ValueError('http_proxy cannot be ""')
-        if https_proxy == "":
-            raise ValueError('https_proxy cannot be ""')
-        proxy_config = {
-            "http-proxy": http_proxy,
-            "https-proxy": https_proxy,
-        }
+        if http_proxy == "" and https_proxy == "":
+            raise ValueError('both proxies cannot be ""')
+
+        proxy_config = {}
+        if http_proxy:
+            proxy_config["http-proxy"] = http_proxy
+
+        if https_proxy:
+            proxy_config["https-proxy"] = https_proxy
 
         daemon_config = {"proxies": proxy_config}
 

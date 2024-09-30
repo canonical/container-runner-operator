@@ -621,17 +621,19 @@ class TestContainerRunner(unittest.TestCase):
     def test_set_docker_proxy(self, mock_mkdir, mock_write_text):
         http_proxy = "http://proxy.example.com:8080"
         https_proxy = "https://proxy.example.com:8443"
-        expected_config = {
-            "proxies": {
-                "http-proxy": http_proxy,
-                "https-proxy": https_proxy,
-            }
-        }
 
         test_cases = [
             {
-                "name": "set valid proxies",
+                "name": "set both proxies",
                 "http_proxy": http_proxy,
+                "https_proxy": https_proxy,
+            },
+            {
+                "name": "set http proxy",
+                "http_proxy": http_proxy,
+            },
+            {
+                "name": "set https proxy",
                 "https_proxy": https_proxy,
             },
             {
@@ -645,12 +647,22 @@ class TestContainerRunner(unittest.TestCase):
                 http_proxy = case.get("http_proxy", "")
                 https_proxy = case.get("https_proxy", "")
 
+                # Generate the expected configuration based on the proxies provided
+                proxy_config = {}
+                if http_proxy:
+                    proxy_config["http-proxy"] = http_proxy
+                if https_proxy:
+                    proxy_config["https-proxy"] = https_proxy
+                expected_config = {}
+                if proxy_config:
+                    expected_config["proxies"] = proxy_config
+
                 # Reset mocks for each test case
                 mock_mkdir.reset_mock()
                 mock_write_text.reset_mock()
 
                 # Run the method
-                if http_proxy == "":
+                if http_proxy == "" and https_proxy == "":
                     with self.assertRaises(ValueError):
                         self.container_runner.set_docker_proxy(http_proxy, https_proxy)
                 else:
