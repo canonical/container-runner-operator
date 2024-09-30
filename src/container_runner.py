@@ -25,12 +25,10 @@ class _Docker:
         try:
             # Set this env to automatically restart daemons. If not, the prompt is blocking.
             env = os.environ.copy()
+            # See manpage here: https://manpages.ubuntu.com/manpages/noble/man1/needrestart.1.html
             env["NEEDRESTART_MODE"] = "a"
 
-            # Run apt-get update
             subprocess.run(["apt-get", "update"], check=True, env=env)
-
-            # Install docker.io package
             subprocess.run(["apt-get", "install", "-y", "docker.io"], check=True, env=env)
 
             self._wait_for_docker()
