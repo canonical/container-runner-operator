@@ -675,12 +675,15 @@ def test_try_set_proxy_settings(self, mock_mkdir, mock_write_text):
 
                 # Call the method
                 _try_set_proxy_settings()
-                # Run assertions
-                self.assertEqual(os.environ.get("HTTP_PROXY"), case.get("http_proxy"))
-                self.assertEqual(os.environ.get("HTTPS_PROXY"), case.get("https_proxy"))
 
                 # Assertions
-                mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
-                mock_write_text.assert_called_once_with(
-                    json.dumps(expected_config, indent=2), encoding="utf-8"
-                )
+                self.assertEqual(os.environ.get("HTTP_PROXY"), case.get("http_proxy"))
+                self.assertEqual(os.environ.get("HTTPS_PROXY"), case.get("https_proxy"))
+                if expected_config == {}:
+                    mock_mkdir.assert_not_called()
+                    mock_write_text.assert_not_called()
+                else:
+                    mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+                    mock_write_text.assert_called_once_with(
+                        json.dumps(expected_config, indent=2), encoding="utf-8"
+                    )
