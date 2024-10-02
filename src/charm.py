@@ -7,7 +7,6 @@
 Charm for deploying and managing OCI images and their database relations.
 """
 import logging
-import os
 from io import StringIO
 import ops
 
@@ -52,6 +51,7 @@ class ContainerRunnerCharm(ops.CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+
         container_image = _cast_config_to_string(self.config.get("container-image-uri"))
         container_port = _cast_config_to_int(self.config.get("container-port"))
         host_port = _cast_config_to_int(self.config.get("host-port"))
@@ -211,9 +211,10 @@ class ContainerRunnerCharm(ops.CharmBase):
 
         self._env_vars.update({"APP_POSTGRES_URI": connection_string})
         self._waiting_for_database_relation = False
+        logger.debug(
+            f"_waiting_for_database_relation updated to {self._waiting_for_database_relation}"
+        )
 
-        # Ensure squid proxy
-        self._set_proxy()
         try:
             self._container_runner.configure(self._env_vars)
         except Exception as e:
@@ -246,13 +247,6 @@ class ContainerRunnerCharm(ops.CharmBase):
         else:
             logger.warning("Missing database relation data. Cannot generate connection string.")
             return ""
-
-    def _set_proxy(self):
-        """Set Squid proxy environment variables if configured."""
-        proxy_url = os.environ.get("JUJU_CHARM_HTTP_PROXY")
-        if proxy_url:
-            os.environ["HTTP_PROXY"] = proxy_url
-            os.environ["HTTPS_PROXY"] = proxy_url
 
 
 if __name__ == "__main__":  # pragma: nocover

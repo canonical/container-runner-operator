@@ -1,12 +1,12 @@
 """Control a OCI image running via Docker on a host system. Provides a ContainerRunner class."""
 
+import json
+from pathlib import Path
 import logging
 import subprocess
 import time
 import os
 from typing import Iterable, Optional
-
-from charms.operator_libs_linux.v1 import snap
 
 # Configure logging level based on environment variable or default to INFO
 log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
@@ -15,24 +15,52 @@ log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
 logger = logging.getLogger(__name__)
 logger.setLevel(log_level)
 
+DOCKER_DAEMON_CONFIG_PATH = Path("/etc/docker/daemon.json")
+
+
+def _try_set_proxy_settings():
+    """If Juju proxy environment variables are present, set proxy environment variables and write Docker proxy settings to /etc/docker/daemon.json."""
+    http_proxy = os.environ.get("JUJU_CHARM_HTTP_PROXY")
+    https_proxy = os.environ.get("JUJU_CHARM_HTTPS_PROXY")
+
+    if not http_proxy and not https_proxy:
+        logger.info("No Juju proxy environment variables set, skipping setting proxy settings")
+        return
+
+    # Proxy settings to be written to /etc/docker/daemon.json for Docker daemon to load.
+    proxy_config = {}
+
+    if http_proxy:
+        logger.debug(f"Setting HTTP_PROXY to value: {http_proxy}")
+        proxy_config["http-proxy"] = http_proxy
+        os.environ["HTTP_PROXY"] = http_proxy
+    if https_proxy:
+        logger.debug(f"Setting HTTPS_PROXY to value: {https_proxy}")
+        proxy_config["https-proxy"] = https_proxy
+        os.environ["HTTPS_PROXY"] = https_proxy
+
+    daemon_config = {"proxies": proxy_config}
+    DOCKER_DAEMON_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DOCKER_DAEMON_CONFIG_PATH.write_text(json.dumps(daemon_config, indent=2), encoding="utf-8")
+
 
 class _Docker:
     """Private class for handling the installed Docker snap."""
 
-    @property
-    def _docker(self):
-        """Return a representation of the Docker snap."""
-        cache = snap.SnapCache()
-        return cache["docker"]
-
     def install(self):
-        # Install Docker
         try:
-            self._docker.ensure(snap.SnapState.Latest, channel="stable")
-            snap.hold_refresh()
+            # Set this env to automatically restart daemons. If not, the prompt is blocking.
+            env = os.environ.copy()
+            # See manpage here: https://manpages.ubuntu.com/manpages/noble/man1/needrestart.1.html
+            env["NEEDRESTART_MODE"] = "a"
+
+            subprocess.run(["apt-get", "update"], check=True, env=env)
+            subprocess.run(["apt-get", "install", "-y", "docker.io"], check=True, env=env)
+
             self._wait_for_docker()
-        except snap.SnapError as e:
-            logger.error("could not install docker. Reason: %s", e.message)
+
+        except subprocess.CalledProcessError as e:
+            logger.error("could not install docker. Reason: %s", e)
             logger.debug(e, exc_info=True)
             raise e
 
@@ -151,6 +179,7 @@ class ContainerRunner:
         self._watchtower_container = "watchtower_container"
         self._container_port = container_port
         self._host_port = host_port
+        _try_set_proxy_settings()
 
     def set_ports(self, container_port: int, host_port: int):
         """Set the container port and host port used when running the OCI image."""
