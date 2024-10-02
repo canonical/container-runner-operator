@@ -19,7 +19,7 @@ DOCKER_DAEMON_CONFIG_PATH = Path("/etc/docker/daemon.json")
 
 
 def _try_set_proxy_settings():
-    """If Juju proxy environment variables are present, set procy environment variables and write Docker proxy settings to /etc/docker/daemon.json."""
+    """If Juju proxy environment variables are present, set proxy environment variables and write Docker proxy settings to /etc/docker/daemon.json."""
     http_proxy = os.environ.get("JUJU_CHARM_HTTP_PROXY")
     https_proxy = os.environ.get("JUJU_CHARM_HTTPS_PROXY")
 
