@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install tox
       - name: Setup LXD
-        uses: canonical/setup-lxd@08a1abca75674bc7bf909a43103cbe227010847d
+        uses: canonical/setup-lxd@54a5806e490d92e207b57183cf111ed54bbdeff4
       - name: Run tests
         run: |
           tox -e functional
