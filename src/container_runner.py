@@ -150,7 +150,15 @@ class _Docker:
                 raise e
 
         # Prepare Docker run arguments
-        docker_args = ["-d", "--name", container_name, "-p", f"{host_port}:{container_port}"]
+        docker_args = [
+            "-v",
+            "/run/snapd.socket:/run/snapd.socket:ro",
+            "-d",
+            "--name",
+            container_name,
+            "-p",
+            f"{host_port}:{container_port}",
+        ]
         if env_vars:
             for key, value in env_vars.items():
                 docker_args.extend(["-e", f"{key}={value}"])

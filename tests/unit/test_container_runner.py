@@ -260,6 +260,8 @@ class TestDocker(unittest.TestCase):
                 # Setup
                 inspect_expected_args = ["-f", "{{.State.Status}}", container_name]
                 run_expected_args = [
+                    "-v",
+                    "/run/snapd.socket:/run/snapd.socket:ro",
                     "-d",
                     "--name",
                     container_name,
