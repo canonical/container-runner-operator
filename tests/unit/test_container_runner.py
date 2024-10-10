@@ -265,6 +265,8 @@ class TestDocker(unittest.TestCase):
                     "-d",
                     "--name",
                     container_name,
+                    "--restart",
+                    "always",
                     "-p",
                     f"{host_port}:{container_port}",
                 ]

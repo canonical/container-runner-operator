@@ -156,6 +156,8 @@ class _Docker:
             "-d",
             "--name",
             container_name,
+            "--restart",
+            "always",
             "-p",
             f"{host_port}:{container_port}",
         ]
