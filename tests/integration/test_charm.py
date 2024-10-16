@@ -25,7 +25,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file_
 @mark.skip_if_deployed
 async def test_deploy(ops_test: OpsTest, container_runner_charm):
     config = {
-        "container-image-uri": "ghcr.io/ubuntu/app-center-ratings:sha-7f05d08",
+        "container-image-uri": "ghcr.io/ubuntu/app-center-ratings:dev",
         "host-port": 81,
         "container-port": 81,
         "database-expected": True,
@@ -59,6 +59,19 @@ async def test_database_relation(ops_test: OpsTest):
             apps=[CONTAINER_RUNNER], status="active", raise_on_blocked=True, timeout=1000
         ),
     )
+
+    # Power cycle the unit (shutdown and then reboot)
+    unit_name = UNIT_0
+    print(f"Restarting {unit_name}...")
+    await ops_test.model.units[unit_name].run("sudo reboot")
+    await ops_test.model.wait_for_idle(
+        apps=[CONTAINER_RUNNER], status="active", raise_on_blocked=True, timeout=1000
+    )
+
+    # Verify that the status is active after rebooting
+    assert ops_test.model.applications[CONTAINER_RUNNER].units[0].workload_status == "active"
+
+
 
 
 @mark.abort_on_fail
