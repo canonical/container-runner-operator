@@ -82,7 +82,7 @@ class ContainerRunnerCharm(ops.CharmBase):
             self._update_service_config()
         else:
             self._waiting_for_database_relation = (
-                _cast_config_to_bool(self.config.get("database-expected")) and database_available
+                _cast_config_to_bool(self.config.get("database-expected")) and not database_available
             )
 
     def _on_config_changed(self, _):
