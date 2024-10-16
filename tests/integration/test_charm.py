@@ -72,8 +72,6 @@ async def test_database_relation(ops_test: OpsTest):
     assert ops_test.model.applications[CONTAINER_RUNNER].units[0].workload_status == "active"
 
 
-
-
 @mark.abort_on_fail
 async def test_hello_world_image(ops_test: OpsTest):
     """Test that the charm can deploy a container that can then be reached via curl."""
