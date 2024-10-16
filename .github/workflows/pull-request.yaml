@@ -1,9 +1,9 @@
-name: Pull Request (Charm)
+name: Pull Request (Main)
 
 on:
   pull_request:
-    paths:
-      - '*'
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
