@@ -60,7 +60,9 @@ async def test_database_relation(ops_test: OpsTest):
         ),
     )
 
-    # Power cycle the unit (shutdown and then reboot)
+
+@mark.abort_on_fail
+async def test_power_cycling_machine(ops_test: OpsTest):
     unit_name = UNIT_0
     print(f"Restarting {unit_name}...")
     await ops_test.model.units[unit_name].run("sudo reboot")
@@ -73,14 +75,28 @@ async def test_database_relation(ops_test: OpsTest):
 
 
 @mark.abort_on_fail
+async def test_port_update(ops_test: OpsTest):
+    """Test that the charm can update config while running to redeploy a different image on a different port."""
+    await ops_test.model.applications[CONTAINER_RUNNER].set_config(
+        {
+            "host-port": "82",
+        }
+    )
+    await ops_test.model.wait_for_idle(
+        apps=[CONTAINER_RUNNER], status="active", raise_on_blocked=True, timeout=1000
+    )
+    assert ops_test.model.applications[CONTAINER_RUNNER].units[0].workload_status == "active"
+
+
+@mark.abort_on_fail
 async def test_hello_world_image(ops_test: OpsTest):
-    """Test that the charm can deploy a container that can then be reached via curl."""
+    """Test that the ratings service is reachable via gRPC."""
     status = await ops_test.model.get_status()  # noqa: F821
     unit = list(status.applications[CONTAINER_RUNNER].units)[0]
     print(f"Connecting to address: {status}")
     address = status["applications"][CONTAINER_RUNNER]["units"][unit]["public-address"]
     print(f"Connecting to address: {address}")
-    connection_string = f"{address}:81"
+    connection_string = f"{address}:82"
 
     channel = grpc.insecure_channel(connection_string)
     stub = pb2_grpc.UserStub(channel)
