@@ -77,9 +77,14 @@ class ContainerRunnerCharm(ops.CharmBase):
 
         # Track state of charm
         # TODO: remove (see above)
-        self._waiting_for_database_relation = _cast_config_to_bool(
-            self.config.get("database-expected")
-        )
+        database_available = self.model.get_relation("database") is not None
+        if database_available:
+            self._update_service_config()
+        else:
+            self._waiting_for_database_relation = (
+                _cast_config_to_bool(self.config.get("database-expected"))
+                and not database_available
+            )
 
     def _on_config_changed(self, _):
         """Update the env vars and restart the OCI container."""
