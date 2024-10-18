@@ -253,6 +253,7 @@ class ContainerRunnerCharm(ops.CharmBase):
             logger.warning(
                 f"Missing database relation data. Cannot generate connection string. Got username: {username is not None}, Got password: {password is not None}, Got endpoints: {endpoints is not None}"
             )
+            logger.debug(f"Keys available in relation: {list(data.keys())}")
             return ""
 
 
