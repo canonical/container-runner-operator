@@ -7,6 +7,7 @@ import subprocess
 import time
 import os
 from typing import Iterable, Optional
+from charms.operator_libs_linux.v2 import snap
 
 # Configure logging level based on environment variable or default to INFO
 log_level = os.getenv("LOG_LEVEL", "WARNING").upper()
@@ -16,6 +17,18 @@ logger = logging.getLogger(__name__)
 logger.setLevel(log_level)
 
 DOCKER_DAEMON_CONFIG_PATH = Path("/etc/docker/daemon.json")
+
+
+def _install_certbot_snap():
+    # Install Certbot for managing certificates
+    try:
+        cache = snap.SnapCache()
+        certbot = cache["certbot"]
+        if not certbot.present:
+            certbot.ensure(snap.SnapState.Latest)
+    except snap.SnapError as e:
+        logger.error("An exception occurred when installing charmcraft. Reason: %s", e.message)
+    # Run Certbot in standalone mode. This will spin up a temp web server on port 80 to gain a cert.
 
 
 def _try_set_proxy_settings():
@@ -228,6 +241,14 @@ class ContainerRunner:
             logger.info("Successfully started Watchtower to monitor: %s", self._container_name)
         except Exception as e:
             logger.error("Failed to start Watchtower: %s", e)
+            raise
+
+        # Install certbot
+        try:
+            _install_certbot_snap()
+            logger.info("Successfully installed certbot snap")
+        except Exception as e:
+            logger.error("Failed to install certbot snap: %s", e)
             raise
 
         # Pull the managed image
