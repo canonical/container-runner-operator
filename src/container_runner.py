@@ -19,8 +19,11 @@ logger.setLevel(log_level)
 DOCKER_DAEMON_CONFIG_PATH = Path("/etc/docker/daemon.json")
 
 
-def _install_certbot_snap():
+def _obtain_tls(email: str, domain: str):
     # Install Certbot for managing certificates
+    if email == "" or domain == "":
+        logger.warning("Skipping TLS setup, both an email and domain are required.")
+        return
     try:
         cache = snap.SnapCache()
         certbot = cache["certbot"]
@@ -29,6 +32,23 @@ def _install_certbot_snap():
     except snap.SnapError as e:
         logger.error("An exception occurred when installing charmcraft. Reason: %s", e.message)
     # Run Certbot in standalone mode. This will spin up a temp web server on port 80 to gain a cert.
+    try:
+        subprocess.check_output(
+            [
+                "certbot",
+                "certonly",
+                "--standalone",
+                "--non-interactive",
+                "--email",
+                email,
+                "--agree-tos",
+                "-d",
+                domain,
+                "--dry-run",
+            ]
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running certbot: {e}")
 
 
 def _try_set_proxy_settings():
@@ -45,11 +65,15 @@ def _try_set_proxy_settings():
 
     if http_proxy:
         logger.debug(f"Setting HTTP_PROXY to value: {http_proxy}")
+        # Used by Docker to pull images through a proxy
         proxy_config["http-proxy"] = http_proxy
+        # Used by Certbot to obtain certificates through a proxy
         os.environ["HTTP_PROXY"] = http_proxy
     if https_proxy:
         logger.debug(f"Setting HTTPS_PROXY to value: {https_proxy}")
+        # Used by Docker to pull images through a proxy
         proxy_config["https-proxy"] = https_proxy
+        # Used by Certbot to obtain certificates through a proxy
         os.environ["HTTPS_PROXY"] = https_proxy
 
     daemon_config = {"proxies": proxy_config}
@@ -165,7 +189,7 @@ class _Docker:
         # Prepare Docker run arguments
         docker_args = [
             "-v",
-            "/run/snapd.socket:/run/snapd.socket:ro",
+            "/etc/letsencrypt:/etc/letsencrypt:ro",
             "-d",
             "--name",
             container_name,
@@ -195,13 +219,17 @@ class _Docker:
 class ContainerRunner:
     """Class representing a managed container running on a host system."""
 
-    def __init__(self, container_image: str, container_port: int, host_port: int):
+    def __init__(
+        self, container_image: str, container_port: int, host_port: int, email: str, domain: str
+    ):
         self._docker = _Docker()
         self._container_image = container_image
         self._container_name = "managed_container"
         self._watchtower_container = "watchtower_container"
         self._container_port = container_port
         self._host_port = host_port
+        self._email = email
+        self._domain = domain
         _try_set_proxy_settings()
 
     def set_ports(self, container_port: int, host_port: int):
@@ -243,14 +271,6 @@ class ContainerRunner:
             logger.error("Failed to start Watchtower: %s", e)
             raise
 
-        # Install certbot
-        try:
-            _install_certbot_snap()
-            logger.info("Successfully installed certbot snap")
-        except Exception as e:
-            logger.error("Failed to install certbot snap: %s", e)
-            raise
-
         # Pull the managed image
         try:
             self._docker.pull_image(self._container_image)
@@ -276,6 +296,16 @@ class ContainerRunner:
                 logger.info("Successfully removed container: %s", self._container_name)
             except Exception as e:
                 logger.error("Failed to remove container: %s", e)
+                raise
+
+        # Install certbot if it hasn't been already
+        if not hasattr(self, "_tls__obtained"):
+            self._tls__obtained = True
+            try:
+                _obtain_tls(self._email, self._domain)
+                logger.info("Successfully installed certbot snap")
+            except Exception as e:
+                logger.error("Failed to install certbot snap: %s", e)
                 raise
 
         # Re-run the managed container with environment variables

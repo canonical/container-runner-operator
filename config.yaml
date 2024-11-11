@@ -23,3 +23,13 @@ options:
     type: secret
     description: | 
         Expects the string content of a .env file, with each variable on a new line.
+  email:
+    type: string
+    default: ""
+    description: |
+        Email address certbot will use to send security and renewal emails to.
+  domain:
+    type: string
+    default: ""
+    description: 
+        Domain certbot should attempt to obtain tls certificates for.
