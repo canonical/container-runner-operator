@@ -55,7 +55,16 @@ class ContainerRunnerCharm(ops.CharmBase):
         container_image = _cast_config_to_string(self.config.get("container-image-uri"))
         container_port = _cast_config_to_int(self.config.get("container-port"))
         host_port = _cast_config_to_int(self.config.get("host-port"))
-        self._container_runner = ContainerRunner(container_image, container_port, host_port)
+        email = _cast_config_to_string(self.config.get("email"))
+        domain = _cast_config_to_string(self.config.get("domain"))
+
+        self._container_runner = ContainerRunner(
+            container_image, container_port, host_port, email, domain
+        )
+
+        # Open ports for certbot
+        self.unit.open_port(protocol="tcp", port=80)
+        self.unit.open_port(protocol="tcp", port=443)
 
         # Initialise the integration with PostgreSQL. Currently hardcoded to ratings
         # TODO: add database name as config, use that to tell if we expect a db + makes this generic
