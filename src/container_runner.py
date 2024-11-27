@@ -44,7 +44,6 @@ def _obtain_tls(email: str, domain: str):
                 "--agree-tos",
                 "-d",
                 domain,
-                "--dry-run",
             ]
         )
     except subprocess.CalledProcessError as e:
