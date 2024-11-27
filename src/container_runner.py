@@ -30,7 +30,7 @@ def _obtain_tls(email: str, domain: str):
         if not certbot.present:
             certbot.ensure(snap.SnapState.Latest)
     except snap.SnapError as e:
-        logger.error("An exception occurred when installing charmcraft. Reason: %s", e.message)
+        logger.error("An exception occurred while installing certbot. Reason: %s", e.message)
     # Run Certbot in standalone mode. This will spin up a temp web server on port 80 to gain a cert.
     try:
         subprocess.check_output(
