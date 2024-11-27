@@ -299,8 +299,8 @@ class ContainerRunner:
                 raise
 
         # Install certbot if it hasn't been already
-        if not hasattr(self, "_tls__obtained"):
-            self._tls__obtained = True
+        if not hasattr(self, "_tls__obtained") or self._tls_obtained is False:
+            self._tls_obtained = True
             try:
                 _obtain_tls(self._email, self._domain)
                 logger.info("Successfully installed certbot snap")

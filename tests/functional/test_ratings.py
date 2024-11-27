@@ -8,12 +8,12 @@ class TestContainerRunner(unittest.TestCase):
 
     def setUp(self):
         self.container_runner = ContainerRunner(
-            "ghcr.io/ubuntu/app-center-ratings:sha-7f05d08", 8080, 8080
+            "ghcr.io/ubuntu/app-center-ratings:sha-7f05d08", 8080, 8080, "", ""
         )
         if not self.container_runner.installed:
             self.container_runner.install()
 
-    def test_rock_lifecycle(self):
+    def test_lifecycle(self):
         self.assertTrue(self.container_runner.installed)
 
         self.container_runner.run()
