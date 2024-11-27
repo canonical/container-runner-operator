@@ -261,7 +261,7 @@ class TestDocker(unittest.TestCase):
                 inspect_expected_args = ["-f", "{{.State.Status}}", container_name]
                 run_expected_args = [
                     "-v",
-                    "/run/snapd.socket:/run/snapd.socket:ro",
+                    "/etc/letsencrypt:/etc/letsencrypt:ro",
                     "-d",
                     "--name",
                     container_name,
@@ -388,7 +388,11 @@ class TestDocker(unittest.TestCase):
 class TestContainerRunner(unittest.TestCase):
     def setUp(self):
         self.container_runner = ContainerRunner(
-            container_image="test_image", container_port=80, host_port=8080
+            container_image="test_image",
+            container_port=80,
+            host_port=8080,
+            email="email",
+            domain="domain",
         )
 
     @mock.patch("container_runner.ContainerRunner.running", new_callable=mock.PropertyMock)
@@ -444,13 +448,21 @@ class TestContainerRunner(unittest.TestCase):
     @mock.patch("container_runner._Docker.stop_container")
     @mock.patch("container_runner._Docker.remove_container")
     @mock.patch("container_runner._Docker.run_container")
+    @mock.patch("container_runner._obtain_tls")
     def test_configure(
-        self, _mock_run_container, _mock_remove_container, _mock_stop_container, _mock_running
+        self,
+        _mock_obtain_tls,
+        _mock_run_container,
+        _mock_remove_container,
+        _mock_stop_container,
+        _mock_running,
     ):
         # Common variables
         container_name = "managed_container"
         image_name = "test_image"
         env_vars = {"ENV_VAR": "value"}
+        email = "email"
+        domain = "domain"
 
         test_cases = [
             {
@@ -463,12 +475,14 @@ class TestContainerRunner(unittest.TestCase):
                 "expected_exception": "Failed to stop container",
                 "expected_remove_call": False,
                 "expected_run_call": False,
+                "expected_obtain_tls_call": False,
             },
             {
                 "name": "remove failure",
                 "remove_side_effect": Exception("Failed to remove container"),
                 "expected_exception": "Failed to remove container",
                 "expected_run_call": False,
+                "expected_obtain_tls_call": False,
             },
             {
                 "name": "re-run failure",
@@ -481,6 +495,12 @@ class TestContainerRunner(unittest.TestCase):
                 "expected_stop_call": False,
                 "expected_remove_call": False,
             },
+            {
+                "name": "obtain_tls failure",
+                "obtain_tls_side_effect": Exception("Failed to install certbot snap"),
+                "expected_exception": "Failed to install certbot snap",
+                "expected_run_call": False,
+            },
         ]
 
         for case in test_cases:
@@ -490,6 +510,7 @@ class TestContainerRunner(unittest.TestCase):
                 _mock_stop_container.side_effect = case.get("stop_side_effect")
                 _mock_remove_container.side_effect = case.get("remove_side_effect")
                 _mock_run_container.side_effect = case.get("run_side_effect")
+                _mock_obtain_tls.side_effect = case.get("obtain_tls_side_effect")
 
                 # Test execution
                 if case.get("expected_exception"):
@@ -511,6 +532,12 @@ class TestContainerRunner(unittest.TestCase):
                 else:
                     _mock_remove_container.assert_not_called()
 
+                # Assertions for obtain_tls
+                if case.get("expected_obtain_tls_call", True):
+                    _mock_obtain_tls.assert_called_once_with(email, domain)
+                else:
+                    _mock_obtain_tls.assert_not_called()
+
                 # Assertions for run_container
                 if case.get("expected_run_call", True):
                     _mock_run_container.assert_called_once_with(
@@ -523,6 +550,8 @@ class TestContainerRunner(unittest.TestCase):
                 _mock_stop_container.reset_mock()
                 _mock_remove_container.reset_mock()
                 _mock_run_container.reset_mock()
+                _mock_obtain_tls.reset_mock()
+                self._tls_obtained = False
 
     @mock.patch("container_runner._Docker._run_command")
     def test_installed(self, _mock_run_command):

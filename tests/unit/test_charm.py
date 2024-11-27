@@ -195,7 +195,7 @@ class TestCharm(unittest.TestCase):
 
         # Check the ports have been opened
         opened_ports = {(p.protocol, p.port) for p in self.harness.charm.unit.opened_ports()}
-        self.assertEqual(opened_ports, {("tcp", 1234)})
+        self.assertEqual(opened_ports, {("tcp", 1234), ("tcp", 80), ("tcp", 443)})
 
         # Check status is active
         self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
