@@ -98,9 +98,16 @@ class ContainerRunnerCharm(ops.CharmBase):
     def _on_config_changed(self, _):
         """Update the env vars and restart the OCI container."""
         # TODO: hook into the event and log what actually changed based on the event.
+
+        # Load env vars, proceed if they have changed.
+        new_env_vars = self._load_env_file()
+        if self._env_vars == new_env_vars:
+            logger.info("No changes detected in env vars.")
+            return
+        self._env_vars = new_env_vars
+
         self.unit.status = ops.MaintenanceStatus("Attempting to update config")
-        # Load env vars
-        self._env_vars = self._load_env_file()
+
         # Load ports from Charm config
         # TODO: write some tests to poke at what happens if we want to override / remove config
         container_image = _cast_config_to_string(self.config.get("container-image-uri"))
