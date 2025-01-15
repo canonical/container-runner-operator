@@ -32,4 +32,4 @@ options:
     type: string
     default: ""
     description: 
-        Domain certbot should attempt to obtain tls certificates for.
+        Domain certbot should attempt to obtain tls certificates for. If empty, certbot will not be run.
