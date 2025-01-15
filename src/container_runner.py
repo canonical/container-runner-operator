@@ -297,12 +297,12 @@ class ContainerRunner:
                 logger.error("Failed to remove container: %s", e)
                 raise
 
-        # Install certbot if it hasn't been already
-        if not hasattr(self, "_tls__obtained") or self._tls_obtained is False:
-            self._tls_obtained = True
+        # Install certbot if it hasn't been already, given that a domain was provided in the config
+        if (not hasattr(self, "_tls__obtained") or self._tls_obtained is False) and self._domain != "":
             try:
                 _obtain_tls(self._email, self._domain)
                 logger.info("Successfully installed certbot snap")
+                self._tls_obtained = True
             except Exception as e:
                 logger.error("Failed to install certbot snap: %s", e)
                 raise
