@@ -298,7 +298,9 @@ class ContainerRunner:
                 raise
 
         # Install certbot if it hasn't been already, provided domain is not an empty string
-        if (not hasattr(self, "_tls__obtained") or self._tls_obtained is False) and self._domain != "":
+        if (
+            not hasattr(self, "_tls__obtained") or self._tls_obtained is False
+        ) and self._domain != "":
             self._tls_obtained = True
             try:
                 _obtain_tls(self._email, self._domain)
