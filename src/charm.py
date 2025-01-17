@@ -103,6 +103,7 @@ class ContainerRunnerCharm(ops.CharmBase):
         new_env_vars = self._load_env_file()
         if self._env_vars == new_env_vars:
             logger.info("No changes detected in env vars.")
+            self.unit.status = ops.ActiveStatus()
             return
         self._env_vars = new_env_vars
 

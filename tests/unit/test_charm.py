@@ -85,8 +85,9 @@ class TestCharm(unittest.TestCase):
                 _run.reset_mock()
                 _configure.reset_mock()
 
+    @mock.patch("charm.ContainerRunnerCharm._load_env_file")
     @mock.patch("charm.ContainerRunner.configure")
-    def test_on_config_changed(self, _configure):
+    def test_on_config_changed(self, _configure, _load_env_file):
         test_cases = [
             {
                 "name": "no secrets, no env vars, not waiting for db",
@@ -112,16 +113,25 @@ class TestCharm(unittest.TestCase):
         for case in test_cases:
             with self.subTest(case=case["name"]):
                 # Test setup
+                self.harness.charm._env_vars = {}
+
                 env_vars = case.get("env_vars", {})
-                self.harness.charm._env_vars = env_vars
                 secrets = case.get("secrets", {})
+                combined = {**secrets, **env_vars}
                 waiting_for_db = case.get("waiting_for_db", False)
+                should_skip = combined == self.harness.charm._env_vars or waiting_for_db
+
+                _load_env_file.return_value = combined
+
                 self.harness.charm._waiting_for_database_relation = waiting_for_db
-                expected_status = (
-                    WaitingStatus("Waiting for database relation")
-                    if waiting_for_db
-                    else ActiveStatus()
-                )
+
+                if combined == env_vars:
+                    expected_status = ActiveStatus()
+                elif waiting_for_db:
+                    expected_status = WaitingStatus("Waiting for database relation")
+                else:
+                    expected_status = ActiveStatus()
+
                 if secrets:
                     secret_string = "\n".join(f"{key}={value}" for key, value in secrets.items())
                     secret = self.harness.model.unit.add_secret({"env-vars": secret_string})
@@ -134,7 +144,7 @@ class TestCharm(unittest.TestCase):
 
                 # Run assertions
                 self.assertEqual(self.harness.charm.unit.status, expected_status)
-                if waiting_for_db:
+                if should_skip:
                     _configure.assert_not_called()
                 else:
                     expected_config = {**secrets, **env_vars}
