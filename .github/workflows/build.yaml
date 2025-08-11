@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install dependencies
         run: python3 -m pip install tox --break-system-packages tox
       - name: Run linters
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install dependencies
         run: python -m pip install tox --break-system-packages tox
       - name: Run tests
@@ -42,7 +42,7 @@ jobs:
       - lint
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install dependencies
         run: python -m pip install tox
       - name: Setup LXD
@@ -59,7 +59,7 @@ jobs:
       - unit-test
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install dependencies
         run: python -m pip install tox --break-system-packages tox
       - name: Setup hosts for tests
